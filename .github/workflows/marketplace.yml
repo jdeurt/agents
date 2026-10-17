@@ -1,0 +1,65 @@
+name: Marketplace
+on:
+  pull_request:
+  push:
+    branches: [main]
+  merge_group:
+  workflow_dispatch:
+  schedule:
+    - cron: "17 10 * * *"
+permissions:
+  contents: read
+concurrency:
+  group: marketplace-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.4.3"
+      - run: bun install --frozen-lockfile --ignore-scripts
+      - run: bun run lint
+      - run: bun run check-types
+      - run: bun run format:check
+      - run: bun run imports:check
+      - run: bun run build
+      - run: bun run check
+      - run: bun test
+      - run: bun run publish:marketplace -- --dry-run
+      - name: Smoke-test native Codex installation
+        run: |
+          bun run build -- --output .marketplace-build
+          bunx @openai/codex@0.162.0 plugin marketplace add "$GITHUB_WORKSPACE/.marketplace-build" --json
+          bunx @openai/codex@0.162.0 plugin add jdeurt-design@agents --json
+          bunx @openai/codex@0.162.0 plugin add jdeurt-engineering@agents --json
+  publish:
+    needs: check
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request' && github.event_name != 'merge_group'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.4.3"
+      - run: bun install --frozen-lockfile --ignore-scripts
+      - run: bun run publish:marketplace
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: marketplace
+          path: .marketplace-verify
+          persist-credentials: false
+      - name: Verify published marketplace installs in Codex
+        run: |
+          bunx @openai/codex@0.162.0 plugin marketplace add "$GITHUB_WORKSPACE/.marketplace-verify" --json
+          bunx @openai/codex@0.162.0 plugin add jdeurt-design@agents --json
+          bunx @openai/codex@0.162.0 plugin add jdeurt-engineering@agents --json
+          bunx @openai/codex@0.162.0 plugin add jdeurt-meta@agents --json
+          bunx @openai/codex@0.162.0 plugin add jdeurt-writing@agents --json
+          bunx @openai/codex@0.162.0 plugin add jdeurt-cloudflare@agents --json

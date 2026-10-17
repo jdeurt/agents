@@ -1,0 +1,51 @@
+[marketplace]
+name = "agents"
+display_name = "jdeurt/agents"
+owner = "jdeurt"
+description = "Skills and plugins I like."
+
+[[plugins]]
+name = "design"
+version = "1.0.1"
+description = "Design clear, accessible interfaces and user flows."
+harnesses = ["claude", "codex"]
+category = "Design"
+authentication = "on-use"
+
+[plugins.soubi.mcpServers.mobbin]
+transport = "http"
+url = "https://api.mobbin.com/mcp"
+
+[[plugins]]
+name = "engineering"
+version = "1.0.0"
+description = "Build with Bun TypeScript and current Bun documentation."
+harnesses = ["claude", "codex"]
+category = "Development"
+authentication = "on-use"
+
+[plugins.soubi.mcpServers.bun]
+transport = "http"
+url = "https://bun.com/docs/mcp"
+
+[[plugins]]
+name = "writing"
+version = "1.0.0"
+description = "Write clearly and concisely, and keep edited text coherent."
+harnesses = ["claude", "codex"]
+category = "Writing"
+
+[[plugins]]
+name = "meta"
+version = "1.0.0"
+description = "Author skills and maintain imports and publishing for jdeurt/agents."
+harnesses = ["claude", "codex"]
+category = "Development"
+
+[[plugins]]
+name = "cloudflare"
+version = "1.0.2"
+description = "Build, test, and deploy applications on Cloudflare."
+category = "Development"
+harnesses = ["claude", "codex"]
+native = true

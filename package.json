@@ -1,0 +1,33 @@
+{
+  "name": "@jdeurt/agents",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "bun scripts/build-marketplace.ts",
+    "check": "bun scripts/build-marketplace.ts --check",
+    "test": "bun test scripts/",
+    "format": "bun --bun prettier --write .",
+    "format:check": "bun --bun prettier --check .",
+    "lint": "bun --bun eslint .",
+    "check-types": "bun --bun tsc --noEmit",
+    "imports:add": "bun scripts/imports.ts add",
+    "imports:remove": "bun scripts/imports.ts remove",
+    "imports:sync": "bun scripts/imports.ts sync",
+    "imports:check": "bun scripts/imports.ts check",
+    "publish:marketplace": "bun scripts/publish-marketplace.ts"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.39.5",
+    "@types/bun": "latest",
+    "ajv": "8.20.0",
+    "eslint": "^9.39.5",
+    "eslint-plugin-unicorn": "^57.0.0",
+    "jiti": "^2.7.0",
+    "prettier": "3.9.9",
+    "prettier-plugin-toml": "3.0.2",
+    "soubi": "0.0.1",
+    "typescript": "^5.9.3",
+    "typescript-eslint": "^8.71.2"
+  },
+  "packageManager": "bun@1.4.3"
+}

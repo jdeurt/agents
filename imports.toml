@@ -1,0 +1,18 @@
+[[imports]]
+name = "shadcn"
+kind = "skill"
+repository = "https://github.com/shadcn-ui/ui.git"
+path = "skills/shadcn"
+destination = "plugins/design/skills/shadcn"
+license = "LICENSE.md"
+
+[[imports]]
+kind = "plugin"
+name = "cloudflare"
+repository = "https://github.com/cloudflare/skills.git"
+path = "."
+destination = "plugins/cloudflare"
+license = "LICENSE"
+scripts = "all"
+hooks = true
+local_mcp = true
