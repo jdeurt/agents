@@ -1,31 +1,23 @@
 import { lstat, realpath, rm } from "node:fs/promises";
 import path from "node:path";
-import {
-  readImports,
-  saveImports,
-  validateMarkers,
-  writeMarker,
-} from "./import-config.ts";
+import { readImports, saveImports, validateMarkers, writeMarker } from "./import-config.ts";
 import { readFile, writeFile } from "./io.ts";
 import { buildMarketplace } from "./build-marketplace.ts";
-import type { ExternalImport, Registry } from "./types.ts";
+import type { ExternalImport } from "./types.ts";
+import { parseRegistry } from "./validation.ts";
+import * as z from "zod/mini";
 
 const root = await realpath(process.cwd());
 const [command, ...args] = process.argv.slice(2);
 const entries = await readImports(root);
 await validateMarkers(root, entries);
-const registry = Bun.TOML.parse(
-  await readFile(path.join(root, "marketplace.toml"), "utf8")
-) as unknown as Registry;
-const saveRegistry = () =>
-  writeFile(
-    path.join(root, "marketplace.toml"),
-    Bun.TOML.stringify(
-      registry as unknown as Parameters<typeof Bun.TOML.stringify>[0]
-    )
-  );
+const registry = parseRegistry(Bun.TOML.parse(await readFile(path.join(root, "marketplace.toml"), "utf8")));
+const saveRegistry = async () => {
+  const contents = Bun.TOML.stringify(registry);
+  await writeFile(path.join(root, "marketplace.toml"), contents);
+};
 if (command === "check" && args.length === 0) {
-  console.log(`Validated ${entries.length} imports and markers.`);
+  console.log(`Validated ${String(entries.length)} imports and markers.`);
 } else if (command === "sync" && args.length === 0) {
   await buildMarketplace({
     root,
@@ -41,16 +33,15 @@ if (command === "check" && args.length === 0) {
     entries.filter((item) => item !== entry)
   );
   if (entry.kind === "plugin") {
-    registry.plugins = registry.plugins.filter(
-      (plugin) => plugin.name !== path.basename(entry.destination)
-    );
+    registry.plugins = registry.plugins.filter((plugin) => plugin.name !== path.basename(entry.destination));
     await saveRegistry();
   }
 } else if (command === "add") {
   const [kind, name, repository, source, destination, license, ...flags] = args;
   if (args.length < 6 || flags.length % 2)
     throw new Error(
-      "Usage: imports:add <skill|plugin> <name> <GitHub URL> <source path> <destination> <license path> [--ref ref] [--harness codex|claude|both]"
+      "Usage: imports:add <skill|plugin> <name> <GitHub URL> <source path> <destination> " +
+        "<license path> [--ref ref] [--harness codex|claude|both]"
     );
   const options = new Map<string, string>();
   for (let i = 0; i < flags.length; i += 2) {
@@ -59,7 +50,7 @@ if (command === "check" && args.length === 0) {
     options.set(flags[i], flags[i + 1]);
   }
   const entry: ExternalImport = {
-    kind: kind as ExternalImport["kind"],
+    kind: z.enum(["skill", "plugin"]).parse(kind),
     name,
     repository,
     path: source,
@@ -79,21 +70,13 @@ if (command === "check" && args.length === 0) {
         await lstat(path.join(root, target));
         throw new Error(`Destination exists: ${target}`);
       } catch (error) {
-        if (error.code !== "ENOENT") throw error;
+        if (!(error instanceof Error && "code" in error && error.code === "ENOENT")) throw error;
       }
     }
     const pluginName = destination.split("/")[1];
-    if (
-      kind === "skill" &&
-      !registry.plugins.some(
-        (plugin) => plugin.name === pluginName && !plugin.native
-      )
-    )
+    if (kind === "skill" && !registry.plugins.some((plugin) => plugin.name === pluginName && !plugin.native))
       throw new Error("Skill imports require an existing compiled plugin");
-    if (
-      kind === "plugin" &&
-      registry.plugins.some((plugin) => plugin.name === pluginName)
-    )
+    if (kind === "plugin" && registry.plugins.some((plugin) => plugin.name === pluginName))
       throw new Error("Plugin already registered");
     await writeMarker(root, entry);
     if (kind === "plugin") {
@@ -102,10 +85,7 @@ if (command === "check" && args.length === 0) {
         version: "1.0.0",
         description: `Imported ${pluginName} plugin.`,
         category: "Development",
-        harnesses:
-          harness === "both"
-            ? ["claude", "codex"]
-            : [harness as "claude" | "codex"],
+        harnesses: harness === "both" ? ["claude", "codex"] : [z.enum(["claude", "codex"]).parse(harness)],
         native: true,
       });
       await saveRegistry();

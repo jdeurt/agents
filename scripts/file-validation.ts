@@ -1,12 +1,10 @@
 import { readFile } from "./io.ts";
 import path from "node:path";
 import Ajv from "ajv";
-const schema = JSON.parse(
-  await readFile(
-    new URL("skill-frontmatter.schema.json", import.meta.url),
-    "utf8"
-  )
-);
+import * as z from "zod/mini";
+const schema = z
+  .looseObject({ properties: z.record(z.string(), z.unknown()) })
+  .parse(JSON.parse(await readFile(new URL("skill-frontmatter.schema.json", import.meta.url), "utf8")));
 const ajv = new Ajv({ allErrors: true });
 const validateSharedMetadata = ajv.compile(schema);
 const nativeMetadataValidators = {
@@ -28,29 +26,20 @@ export function parseSkillFrontmatter(source: string) {
     throw new Error("Skill frontmatter must contain one YAML mapping.");
   return {
     header: { position: { end: { offset: match[0].length } } },
-    document: document as Record<string, unknown>,
+    document,
   };
 }
 
-export async function validateSkillFrontmatter(
-  filename,
-  { harness }: { harness?: "claude" | "codex" } = {}
-) {
-  const { document } = await parseSkillFrontmatter(
-    await readFile(filename, "utf8")
-  );
-  const metadata = document as {
-    name: string;
-    metadata?: Record<string, string>;
-  };
-  const validateMetadata =
-    harness === undefined
-      ? validateSharedMetadata
-      : nativeMetadataValidators[harness];
-  if (!validateMetadata)
-    throw new Error(`Unsupported skill harness: ${harness}`);
-  if (!validateMetadata(metadata))
-    throw new Error(ajv.errorsText(validateMetadata.errors));
+export async function validateSkillFrontmatter(filename: string, { harness }: { harness?: "claude" | "codex" } = {}) {
+  const { document } = parseSkillFrontmatter(await readFile(filename, "utf8"));
+  const metadata = z
+    .looseObject({
+      name: z.string(),
+      metadata: z.optional(z.record(z.string(), z.string())),
+    })
+    .parse(document);
+  const validateMetadata = harness === undefined ? validateSharedMetadata : nativeMetadataValidators[harness];
+  if (!validateMetadata(metadata)) throw new Error(ajv.errorsText(validateMetadata.errors));
   if (metadata.name !== path.basename(path.dirname(filename)))
     throw new Error("Skill name must match its directory name.");
   return metadata;

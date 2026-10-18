@@ -13,11 +13,13 @@ test("nightly content changes advance versions while identical builds retain the
     const directory = path.join(output, "dist/codex/plugins/example");
     await mkdir(path.join(directory, ".codex-plugin"), { recursive: true });
     const manifest = '{"name":"jdeurt-example","version":"1.0.0"}\n';
-    const reset = () =>
-      writeFile(path.join(directory, ".codex-plugin/plugin.json"), manifest);
-    const registry = {
-      plugins: [{ name: "example", version: "1.0.0", harnesses: ["codex"] }],
-    } as Registry;
+    const reset = () => writeFile(path.join(directory, ".codex-plugin/plugin.json"), manifest);
+    const registry: Registry = {
+      marketplace: { name: "test", owner: "test", description: "test" },
+      plugins: [
+        { name: "example", version: "1.0.0", description: "test", category: "Development", harnesses: ["codex"] },
+      ],
+    };
     await reset();
     const first = await releaseVersions(output, registry);
     await reset();
@@ -25,7 +27,9 @@ test("nightly content changes advance versions while identical builds retain the
     await reset();
     await writeFile(path.join(directory, "skill.md"), "updated upstream");
     const second = await releaseVersions(output, registry, first);
-    assert.equal(second["codex/example"].version, "1.0.1");
+    const updated = second["codex/example"];
+    assert.ok(updated);
+    assert.equal(updated.version, "1.0.1");
     await reset();
     assert.deepEqual(await releaseVersions(output, registry, second), second);
     assert.equal(nextVersion("2.0.0", "1.0.1"), "2.0.0");

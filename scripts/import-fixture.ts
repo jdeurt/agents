@@ -4,19 +4,9 @@ import path from "node:path";
 import { git } from "./git.ts";
 import { writeFile } from "./io.ts";
 
-export async function withImportFixture<T>(
-  use: (upstream: string) => Promise<T>
-) {
-  const upstream = await realpath(
-    await mkdtemp(path.join(tmpdir(), "agents-upstream-test-"))
-  );
-  const keys = [
-    "GIT_CONFIG_COUNT",
-    "GIT_CONFIG_KEY_0",
-    "GIT_CONFIG_VALUE_0",
-    "GIT_CONFIG_KEY_1",
-    "GIT_CONFIG_VALUE_1",
-  ];
+export async function withImportFixture<T>(use: (upstream: string) => Promise<T>) {
+  const upstream = await realpath(await mkdtemp(path.join(tmpdir(), "agents-upstream-test-")));
+  const keys = ["GIT_CONFIG_COUNT", "GIT_CONFIG_KEY_0", "GIT_CONFIG_VALUE_0", "GIT_CONFIG_KEY_1", "GIT_CONFIG_VALUE_1"];
   const previous = keys.map((key) => process.env[key]);
   try {
     await mkdir(path.join(upstream, "skills/shadcn"), { recursive: true });
@@ -38,16 +28,9 @@ export async function withImportFixture<T>(
       })
     );
     await writeFile(path.join(upstream, "sample/hooks.json"), '{"hooks":{}}\n');
-    await writeFile(
-      path.join(upstream, "sample/.mcp.json"),
-      '{"docs":{"url":"https://example.com/mcp"}}\n'
-    );
+    await writeFile(path.join(upstream, "sample/.mcp.json"), '{"docs":{"url":"https://example.com/mcp"}}\n');
     await writeFile(path.join(upstream, "LICENSE"), "Fixture license\n");
-    for (const manifest of [
-      "plugin.json",
-      ".codex-plugin/plugin.json",
-      ".claude-plugin/plugin.json",
-    ]) {
+    for (const manifest of ["plugin.json", ".codex-plugin/plugin.json", ".claude-plugin/plugin.json"]) {
       await Bun.write(
         path.join(upstream, manifest),
         JSON.stringify({
@@ -70,7 +53,7 @@ export async function withImportFixture<T>(
     return await use(upstream);
   } finally {
     for (const [i, key] of keys.entries()) {
-      if (previous[i] === undefined) delete process.env[key];
+      if (previous[i] === undefined) Reflect.deleteProperty(process.env, key);
       else process.env[key] = previous[i];
     }
     await rm(upstream, { recursive: true, force: true });
