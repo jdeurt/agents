@@ -18,7 +18,12 @@ test(
         await mkdtemp(path.join(tmpdir(), "agents-imports-test-"))
       );
       try {
-        for (const item of ["plugins", "marketplace.toml", "imports.toml"])
+        for (const item of [
+          "plugins",
+          "config",
+          "marketplace.toml",
+          "imports.toml",
+        ])
           await cp(path.join(source, item), path.join(root, item), {
             recursive: true,
           });
