@@ -15,9 +15,14 @@ import {
   editedPaths,
   run,
 } from "../plugins/engineering/scripts/post-edit-core.ts";
+import { PRETTIER_DEFAULTS } from "../plugins/engineering/scripts/post-edit-lint.ts";
 
 const roots: string[] = [];
 const deps = path.resolve("node_modules");
+
+test("bundled formatting defaults use a 120-column width", () => {
+  expect(PRETTIER_DEFAULTS.printWidth).toBe(120);
+});
 
 async function fixture() {
   const root = await mkdtemp(path.join(os.tmpdir(), "engineering-hook-"));
