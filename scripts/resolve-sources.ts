@@ -11,7 +11,12 @@ export async function withResolvedSources<T>(
     await mkdtemp(path.join(tmpdir(), "agents-sources-"))
   );
   try {
-    for (const item of ["plugins", "marketplace.toml", "imports.toml"])
+    for (const item of [
+      "plugins",
+      "config",
+      "marketplace.toml",
+      "imports.toml",
+    ])
       await cp(path.join(root, item), path.join(resolved, item), {
         recursive: true,
       });
