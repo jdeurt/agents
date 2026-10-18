@@ -25,7 +25,12 @@ category = "Development"
 authentication = "on-use"
 
 [plugins.soubi]
-assets = ["scripts/post-edit.ts", "scripts/post-edit-core.ts"]
+assets = [
+  "scripts/post-edit.ts",
+  "scripts/post-edit-core.ts",
+  "scripts/post-edit-lint.ts",
+  "config/engineering-lint.json"
+]
 
 [plugins.soubi.mcpServers.bun]
 transport = "http"

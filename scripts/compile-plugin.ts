@@ -1,5 +1,5 @@
 import { readFile, writeFile } from "./io.ts";
-import { cp, realpath, stat } from "node:fs/promises";
+import { cp, mkdir, realpath, stat } from "node:fs/promises";
 import path from "node:path";
 import { compileProject } from "soubi/compiler";
 import type { HarnessOutput } from "soubi/compiler";
@@ -121,6 +121,11 @@ export async function compilePlugin(
   }
   const project = path.join(staging, plugin.name);
   await cp(source, project, { recursive: true, dereference: true, filter });
+  if (plugin.name === "engineering") {
+    const target = path.join(project, "config/engineering-lint.json");
+    await mkdir(path.dirname(target), { recursive: true });
+    await cp(path.join(root, "config/engineering-lint.json"), target);
+  }
   const config = {
     ...plugin.soubi,
     id: `jdeurt-${plugin.name}`,
@@ -171,6 +176,14 @@ export async function compilePlugin(
     if (!output.files.some((file) => file.path === manifestPath))
       throw new Error(`${plugin.name}: missing ${harness} manifest`);
     for (const file of await applyInvocationPolicies(output, harness, skills)) {
+      // Soubi 0.0.1 emits obsolete manual-install advice for Codex plugin hooks.
+      // Current local Codex loads bundled hooks after the user trusts the plugin.
+      if (
+        plugin.name === "engineering" &&
+        harness === "codex" &&
+        file.path === "hooks/README.md"
+      )
+        continue;
       inside(root, file.path);
       let contents = Buffer.from(file.contents);
       if (file.path === manifestPath) {
