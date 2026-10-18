@@ -25,14 +25,8 @@ test("import policy removes unapproved code and executable integrations and expl
       path.join(directory, "SKILL.md"),
       "---\nname: test\ndescription: Test.\n---\nRun scripts/omitted.py.\n"
     );
-    await writeFile(
-      path.join(directory, "scripts/allowed.ts"),
-      "console.log('allowed');\n"
-    );
-    await writeFile(
-      path.join(directory, "scripts/omitted.py"),
-      "print('omitted')\n"
-    );
+    await writeFile(path.join(directory, "scripts/allowed.ts"), "console.log('allowed');\n");
+    await writeFile(path.join(directory, "scripts/omitted.py"), "print('omitted')\n");
     await writeFile(
       path.join(directory, ".codex-plugin/plugin.json"),
       JSON.stringify({
@@ -49,42 +43,23 @@ test("import policy removes unapproved code and executable integrations and expl
       })
     );
     await applyImportPolicy(directory, entry);
-    assert.equal(
-      await Bun.file(path.join(directory, "scripts/allowed.ts")).exists(),
-      true
-    );
-    assert.equal(
-      await Bun.file(path.join(directory, "scripts/omitted.py")).exists(),
-      false
-    );
-    assert.match(
-      await readFile(path.join(directory, "SKILL.md"), "utf8"),
-      /Do not download, install, recreate/
-    );
-    const manifest = JSON.parse(
-      await readFile(path.join(directory, ".codex-plugin/plugin.json"), "utf8")
-    );
+    assert.equal(await Bun.file(path.join(directory, "scripts/allowed.ts")).exists(), true);
+    assert.equal(await Bun.file(path.join(directory, "scripts/omitted.py")).exists(), false);
+    assert.match(await readFile(path.join(directory, "SKILL.md"), "utf8"), /Do not download, install, recreate/);
+    const manifest = JSON.parse(await readFile(path.join(directory, ".codex-plugin/plugin.json"), "utf8"));
     assert.equal(manifest.hooks, undefined);
     assert.equal(manifest.mcpServers, undefined);
-    const mcp = JSON.parse(
-      await readFile(path.join(directory, ".mcp.json"), "utf8")
-    );
+    const mcp = JSON.parse(await readFile(path.join(directory, ".mcp.json"), "utf8"));
     assert.equal(mcp.local, undefined);
     assert.equal(mcp.remote.url, "https://example.com/mcp");
-    await writeFile(
-      path.join(directory, "scripts/omitted.py"),
-      "print('opt in')\n"
-    );
+    await writeFile(path.join(directory, "scripts/omitted.py"), "print('opt in')\n");
     await applyImportPolicy(directory, {
       ...entry,
       scripts: "all",
       hooks: true,
       local_mcp: true,
     });
-    assert.equal(
-      await Bun.file(path.join(directory, "scripts/omitted.py")).exists(),
-      true
-    );
+    assert.equal(await Bun.file(path.join(directory, "scripts/omitted.py")).exists(), true);
   } finally {
     await rm(directory, { recursive: true, force: true });
   }

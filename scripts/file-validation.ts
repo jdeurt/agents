@@ -1,12 +1,7 @@
 import { readFile } from "./io.ts";
 import path from "node:path";
 import Ajv from "ajv";
-const schema = JSON.parse(
-  await readFile(
-    new URL("skill-frontmatter.schema.json", import.meta.url),
-    "utf8"
-  )
-);
+const schema = JSON.parse(await readFile(new URL("skill-frontmatter.schema.json", import.meta.url), "utf8"));
 const ajv = new Ajv({ allErrors: true });
 const validateSharedMetadata = ajv.compile(schema);
 const nativeMetadataValidators = {
@@ -32,25 +27,15 @@ export function parseSkillFrontmatter(source: string) {
   };
 }
 
-export async function validateSkillFrontmatter(
-  filename,
-  { harness }: { harness?: "claude" | "codex" } = {}
-) {
-  const { document } = await parseSkillFrontmatter(
-    await readFile(filename, "utf8")
-  );
+export async function validateSkillFrontmatter(filename, { harness }: { harness?: "claude" | "codex" } = {}) {
+  const { document } = await parseSkillFrontmatter(await readFile(filename, "utf8"));
   const metadata = document as {
     name: string;
     metadata?: Record<string, string>;
   };
-  const validateMetadata =
-    harness === undefined
-      ? validateSharedMetadata
-      : nativeMetadataValidators[harness];
-  if (!validateMetadata)
-    throw new Error(`Unsupported skill harness: ${harness}`);
-  if (!validateMetadata(metadata))
-    throw new Error(ajv.errorsText(validateMetadata.errors));
+  const validateMetadata = harness === undefined ? validateSharedMetadata : nativeMetadataValidators[harness];
+  if (!validateMetadata) throw new Error(`Unsupported skill harness: ${harness}`);
+  if (!validateMetadata(metadata)) throw new Error(ajv.errorsText(validateMetadata.errors));
   if (metadata.name !== path.basename(path.dirname(filename)))
     throw new Error("Skill name must match its directory name.");
   return metadata;

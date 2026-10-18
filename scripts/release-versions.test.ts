@@ -13,8 +13,7 @@ test("nightly content changes advance versions while identical builds retain the
     const directory = path.join(output, "dist/codex/plugins/example");
     await mkdir(path.join(directory, ".codex-plugin"), { recursive: true });
     const manifest = '{"name":"jdeurt-example","version":"1.0.0"}\n';
-    const reset = () =>
-      writeFile(path.join(directory, ".codex-plugin/plugin.json"), manifest);
+    const reset = () => writeFile(path.join(directory, ".codex-plugin/plugin.json"), manifest);
     const registry = {
       plugins: [{ name: "example", version: "1.0.0", harnesses: ["codex"] }],
     } as Registry;

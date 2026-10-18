@@ -9,9 +9,7 @@ export function catalogs(registry: Registry) {
   const expected = new Map();
   const marketplace = registry.marketplace;
   for (const harness of HARNESSES) {
-    const plugins = registry.plugins.filter((plugin) =>
-      plugin.harnesses.includes(harness)
-    );
+    const plugins = registry.plugins.filter((plugin) => plugin.harnesses.includes(harness));
     const source = (plugin) =>
       harness === "claude"
         ? `./dist/claude/plugins/${plugin.name}`
@@ -38,8 +36,7 @@ export function catalogs(registry: Registry) {
               source: source(plugin),
               policy: {
                 installation: "AVAILABLE",
-                authentication:
-                  plugin.authentication === "on-use" ? "ON_USE" : "ON_INSTALL",
+                authentication: plugin.authentication === "on-use" ? "ON_USE" : "ON_INSTALL",
               },
               category: plugin.category,
             })),

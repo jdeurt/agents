@@ -19,28 +19,13 @@ export const ESLINT_CONFIG = [
   ".eslintrc.yaml",
   ".eslintrc.yml",
 ];
-const packaged = new URL("../config/engineering-lint.mjs", import.meta.url);
-const source = new URL(
-  "../../../config/engineering-lint.mjs",
-  import.meta.url
-);
-const defaults = (await import(
-  (existsSync(packaged) ? packaged : source).href
-)).default as {
-  eslint: {
-    javascript: string;
-    unicorn: string;
-    typescriptTyped: string[];
-    typescriptUntyped: string[];
-    reactHooks: string;
-    rules: Record<string, unknown>;
-    safeFixes: string[];
-  };
-  prettier: Record<string, unknown>;
-};
-export const PRETTIER_DEFAULTS = defaults.prettier;
-// The checked-in fallback file is copied into the plugin during compilation.
-export const SAFE_FIXES = new Set(defaults.eslint.safeFixes);
+const packagedConfig = new URL("../eslint.config.ts", import.meta.url);
+const sourceConfig = new URL("../../../eslint.config.ts", import.meta.url);
+const packagedPrettier = new URL("../prettier.config.mjs", import.meta.url);
+const sourcePrettier = new URL("../../../prettier.config.mjs", import.meta.url);
+export const PRETTIER_DEFAULTS = (await import(
+  (existsSync(packagedPrettier) ? packagedPrettier : sourcePrettier).href
+)).default;
 export type Finding = {
   ruleId?: string | null;
   severity: number;
@@ -75,11 +60,16 @@ export async function loadModule(name: string, directory: string) {
   return import(pathToFileURL(require.resolve(name)).href);
 }
 
-export function reactHookRules(plugin: {
-  configs: Record<string, any> & { flat?: Record<string, any> };
-}) {
-  const name = defaults.eslint.reactHooks;
-  return plugin.configs.flat?.[name]?.rules ?? plugin.configs[name]?.rules;
+async function sharedConfig(root: string) {
+  const prior = process.env.JDEURT_EDIT_LINT_PROJECT_ROOT;
+  process.env.JDEURT_EDIT_LINT_PROJECT_ROOT = root;
+  try {
+    const file = existsSync(packagedConfig) ? packagedConfig : sourceConfig;
+    return await import(`${file.href}?project=${encodeURIComponent(root)}`);
+  } finally {
+    if (prior === undefined) delete process.env.JDEURT_EDIT_LINT_PROJECT_ROOT;
+    else process.env.JDEURT_EDIT_LINT_PROJECT_ROOT = prior;
+  }
 }
 
 async function fallbackConfig(
@@ -87,9 +77,7 @@ async function fallbackConfig(
   root: string,
   forceUntyped = false
 ) {
-  const js = (await loadModule("@eslint/js", root)).default;
-  const unicorn = (await loadModule("eslint-plugin-unicorn", root)).default;
-  const tseslint = (await loadModule("typescript-eslint", root)).default;
+  const shared = await sharedConfig(root);
   const tsconfig = await nearest(path.dirname(file), ["tsconfig.json"], root);
   let typed = Boolean(!forceUntyped && tsconfig && TYPESCRIPT.test(file));
   let typedSkipReason: string | undefined;
@@ -117,67 +105,12 @@ async function fallbackConfig(
       typedSkipReason = "project tsconfig could not be resolved";
     }
   }
-  const tsConfigs = (
-    typed ? defaults.eslint.typescriptTyped : defaults.eslint.typescriptUntyped
-  ).flatMap((name: string) => tseslint.configs[name] ?? []);
-  let reactHooks: any;
-  let reactRules: Record<string, unknown> | undefined;
-  if (/\.(?:jsx|tsx)$/i.test(file)) {
-    try {
-      reactHooks = (await loadModule("eslint-plugin-react-hooks", root))
-        .default;
-      reactRules = reactHookRules(reactHooks);
-    } catch {
-      // Report the missing optional React rule set to the agent.
-    }
-  }
-  let prettierRecommended: Record<string, unknown> | undefined;
-  try {
-    prettierRecommended = (
-      await loadModule("eslint-plugin-prettier/recommended", root)
-    ).default;
-  } catch {
-    // Standalone Prettier handles formatting when the ESLint integration is absent.
-  }
   return {
-    config: [
-      js.configs[defaults.eslint.javascript],
-      unicorn.configs[defaults.eslint.unicorn],
-      ...tsConfigs.map((entry: Record<string, unknown>) => ({
-        ...entry,
-        files: ["**/*.{ts,tsx,mts,cts}"],
-      })),
-      {
-        rules: defaults.eslint.rules,
-      },
-      ...(reactHooks && reactRules
-        ? [
-            {
-              files: ["**/*.{jsx,tsx}"],
-              plugins: { "react-hooks": reactHooks },
-              rules: reactRules,
-            },
-          ]
-        : []),
-      ...(typed
-        ? [
-            {
-              files: ["**/*.{ts,tsx,mts,cts}"],
-              languageOptions: {
-                parserOptions: {
-                  projectService: true,
-                  tsconfigRootDir: path.dirname(tsconfig!),
-                },
-              },
-            },
-          ]
-        : []),
-      ...(prettierRecommended ? [prettierRecommended] : []),
-    ],
+    config: shared.createConfig({ typed, tsconfigRootDir: tsconfig ? path.dirname(tsconfig) : root, hook: true }),
     typed,
     typedSkipReason,
-    integrated: Boolean(prettierRecommended),
-    reactHooksSkipped: /\.(?:jsx|tsx)$/i.test(file) && !reactRules,
+    integrated: shared.formattingIntegrated,
+    reactHooksSkipped: /\.(?:jsx|tsx)$/i.test(file) && !shared.reactHooksAvailable,
   };
 }
 
@@ -228,7 +161,8 @@ export async function lint(
   const fallback = configPath ? undefined : await fallbackConfig(file, root);
   const options: Record<string, unknown> = {
     cwd: configPath ? path.dirname(configPath) : root,
-    fix: (finding: Finding) => SAFE_FIXES.has(finding.ruleId ?? ""),
+    // Only accept fixes supplied by the formatting plugin itself.
+    fix: (finding: Finding) => finding.ruleId?.startsWith("prettier/") ?? false,
   };
   if (fallback) {
     options.overrideConfigFile = true;

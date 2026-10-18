@@ -6,7 +6,6 @@ import { fileURLToPath } from "node:url";
 import {
   ESLINT_CONFIG,
   PRETTIER_DEFAULTS,
-  SAFE_FIXES,
   TYPESCRIPT,
   formattingIntegrated,
   lint,
@@ -103,6 +102,15 @@ async function reactDoctor(file: string, root: string, workspace: string) {
     const report = JSON.parse(output);
     if (report.ok === false)
       return `React Doctor could not scan: ${String(report.error).slice(0, 160)}`;
+    const skipped = Array.isArray(report.projects)
+      ? report.projects.flatMap((project: { skippedChecks?: string[]; skippedCheckReasons?: Record<string, string> }) =>
+          (project.skippedChecks ?? []).map(
+            (check) => `${check}: ${project.skippedCheckReasons?.[check] ?? "no reason provided"}`
+          )
+        )
+      : [];
+    if (skipped.length)
+      return `React Doctor skipped checks: ${skipped.slice(0, 2).join("; ").slice(0, 220)}`;
     const diagnostics = Array.isArray(report.diagnostics)
       ? report.diagnostics
       : [];
@@ -189,7 +197,7 @@ export async function run(event: Event): Promise<string> {
       if (findings.length > 8)
         notes.push(`... ${findings.length - 8} more findings`);
       const manual = findings.filter(
-        (item) => !SAFE_FIXES.has(item.ruleId ?? "")
+        (item) => !item.ruleId?.startsWith("prettier/")
       ).length;
       if (manual)
         notes.push(

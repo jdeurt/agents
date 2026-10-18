@@ -1,10 +1,10 @@
 # Repository conventions
 
-**Bun TypeScript is the language of choice** for this repository. Run `.ts` files directly with Bun; do not add a JavaScript compilation step or introduce new JavaScript tooling files.
+**Bun TypeScript is the language of choice** for this repository. Run `.ts` files directly with Bun; do not add a JavaScript compilation step. `prettier.config.mjs` is the shared ESM formatting configuration.
 
 Prefer Bun built-ins over new dependencies: `Bun.file`/`Bun.write`, `Bun.TOML`, `Bun.YAML`, `Bun.CryptoHasher`, `Bun.spawn`/`Bun.spawnSync`, and `bun:test`. Use Node-compatible filesystem APIs for directory, symlink, and permission operations that lack a suitable Bun equivalent. Keep dependencies only where Bun does not provide the required behavior; explain that need before adding one.
 
-Use the ESLint and Prettier configuration in this repository. The rules follow Luma's applicable JavaScript/TypeScript conventions: recommended ESLint, TypeScript ESLint, and Unicorn rules; consistent type imports; a 350-line limit including comments and blanks; double quotes; semicolons; two-space indentation; 80-column formatting; ES5 trailing commas; and LF line endings. React rules do not apply to this repository's CLI tooling.
+Use the root ESLint and Prettier configuration in this repository. Engineering copies these same files into its edit hook at build time. The ESLint policy uses recommended JavaScript and Unicorn rules, TypeScript ESLint strict and stylistic rules (type-checked when a project tsconfig supports them), consistent type imports, and a 350-line limit including comments and blanks. React Hooks `recommended-latest` applies when that plugin is installed. Prettier uses double quotes, semicolons, two-space indentation, 120-column formatting, ES5 trailing commas, and LF line endings. React rules do not apply to this repository's CLI tooling.
 
 Preserve imported third-party content except for declared import-policy filtering, omission notices, client compatibility fields, and built plugin identities. Lint and format repository-owned code, not vendored skill assets or generated packages. Declare external skills and plugins in `imports.toml` and commit only their `.import` markers. Resolve upstream content into temporary build sources; never write imported content or an import lockfile to `main`. Default to the upstream default branch, with optional explicit refs.
 

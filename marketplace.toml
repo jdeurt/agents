@@ -29,7 +29,8 @@ assets = [
   "scripts/post-edit.ts",
   "scripts/post-edit-core.ts",
   "scripts/post-edit-lint.ts",
-  "config/engineering-lint.mjs"
+  "eslint.config.ts",
+  "prettier.config.mjs"
 ]
 
 [plugins.soubi.mcpServers.bun]

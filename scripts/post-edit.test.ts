@@ -1,24 +1,11 @@
 import { afterEach, expect, test } from "bun:test";
 import { spawnSync } from "node:child_process";
-import {
-  chmod,
-  mkdtemp,
-  mkdir,
-  readFile,
-  rm,
-  symlink,
-  writeFile,
-} from "node:fs/promises";
+import { chmod, mkdtemp, mkdir, readFile, rm, symlink, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import {
-  editedPaths,
-  run,
-} from "../plugins/engineering/scripts/post-edit-core.ts";
-import {
-  PRETTIER_DEFAULTS,
-  reactHookRules,
-} from "../plugins/engineering/scripts/post-edit-lint.ts";
+import { editedPaths, run } from "../plugins/engineering/scripts/post-edit-core.ts";
+import { PRETTIER_DEFAULTS } from "../plugins/engineering/scripts/post-edit-lint.ts";
+import { reactHookRules } from "../eslint.config.ts";
 
 const roots: string[] = [];
 const deps = path.resolve("node_modules");
@@ -62,9 +49,7 @@ async function fixture() {
 }
 
 afterEach(async () => {
-  await Promise.all(
-    roots.splice(0).map((root) => rm(root, { recursive: true, force: true }))
-  );
+  await Promise.all(roots.splice(0).map((root) => rm(root, { recursive: true, force: true })));
 });
 
 function event(root: string, file: string, tool = "Write") {
@@ -89,14 +74,11 @@ test("extracts only explicit edited JS/TS paths from batch and patch input", () 
     editedPaths({
       tool_name: "apply_patch",
       tool_input: {
-        patch:
-          "*** Add File: new.cjs\n*** Update File: path/x.tsx\n*** Delete File: old.ts",
+        patch: "*** Add File: new.cjs\n*** Update File: path/x.tsx\n*** Delete File: old.ts",
       },
     })
   ).toEqual(["new.cjs", "path/x.tsx"]);
-  expect(
-    editedPaths({ tool_name: "Bash", tool_input: { file_path: "a.ts" } })
-  ).toEqual([]);
+  expect(editedPaths({ tool_name: "Bash", tool_input: { file_path: "a.ts" } })).toEqual([]);
 });
 
 test("formats a touched file, reports lint findings, and is idempotent", async () => {
@@ -109,9 +91,7 @@ test("formats a touched file, reports lint findings, and is idempotent", async (
   const first = await run(event(root, file));
   expect(first).toContain("Applied formatting and safe lint fixes");
   expect(first).toContain("no-undef");
-  expect(await readFile(file, "utf8")).toBe(
-    "const bad = 1;\nconsole.log(missing);\n"
-  );
+  expect(await readFile(file, "utf8")).toBe("const bad = 1;\nconsole.log(missing);\n");
   expect(await readFile(other, "utf8")).toBe("const untouched=  2");
   const second = await run(event(root, file));
   expect(second).not.toContain("Applied formatting");
@@ -137,12 +117,8 @@ test("fallback respects a tsconfig that disables strict null checks", async () =
   await writeFile(file, "const value: any=1; value.foo()\n");
   process.env.JDEURT_EDIT_LINT_ACTIVE = "1";
   const result = await run(event(root, file));
-  expect(result).toContain(
-    "project tsconfig does not enable strict null checks"
-  );
-  expect(result).not.toContain(
-    "requires the `strictNullChecks` compiler option"
-  );
+  expect(result).toContain("project tsconfig does not enable strict null checks");
+  expect(result).not.toContain("requires the `strictNullChecks` compiler option");
   expect(await Bun.file(path.join(root, "sample.js")).exists()).toBe(false);
 });
 
@@ -156,9 +132,7 @@ test("missing Bun produces a nonblocking installation request", async () => {
     encoding: "utf8",
   });
   expect(result.status).toBe(0);
-  expect(
-    JSON.parse(result.stdout).hookSpecificOutput.additionalContext
-  ).toContain("Please install Bun");
+  expect(JSON.parse(result.stdout).hookSpecificOutput.additionalContext).toContain("Please install Bun");
 });
 
 test("project ESLint and Prettier config take precedence; no TS outputs", async () => {
@@ -168,13 +142,13 @@ test("project ESLint and Prettier config take precedence; no TS outputs", async 
     path.join(root, "eslint.config.mjs"),
     "export default [{files:['**/*.ts'],rules:{'no-unused-vars':'off'}}];\n"
   );
-  await writeFile(
-    path.join(root, ".prettierrc.json"),
-    '{"semi":false,"singleQuote":true}'
-  );
+  await writeFile(path.join(root, ".prettierrc.json"), '{"semi":false,"singleQuote":true}');
   await writeFile(
     path.join(root, "tsconfig.json"),
-    '{"compilerOptions":{"module":"NodeNext","moduleResolution":"NodeNext","outDir":"output","strict":false},"include":["source.ts"]}'
+    JSON.stringify({
+      compilerOptions: { module: "NodeNext", moduleResolution: "NodeNext", outDir: "output", strict: false },
+      include: ["source.ts"],
+    })
   );
   await writeFile(file, "const greeting =  'hello';\n");
   process.env.JDEURT_EDIT_LINT_ACTIVE = "1";
@@ -182,9 +156,7 @@ test("project ESLint and Prettier config take precedence; no TS outputs", async 
   expect(result).toContain("Applied formatting");
   expect(await readFile(file, "utf8")).toBe("const greeting = 'hello'\n");
   expect(await Bun.file(path.join(root, "output")).exists()).toBe(false);
-  expect(await readFile(path.join(root, "tsconfig.json"), "utf8")).toContain(
-    '"strict":false'
-  );
+  expect(await readFile(path.join(root, "tsconfig.json"), "utf8")).toContain('"strict":false');
 });
 
 test("legacy ESLint config is used without the fallback rule set", async () => {
@@ -213,9 +185,7 @@ test("ignores generated, deleted, symlink-escaped and unsupported files", async 
   expect(await run(event(root, path.join(root, "escape.js")))).toBe("");
   expect(await run(event(root, path.join(root, "missing.js")))).toBe("");
   expect(await run(event(root, path.join(root, "dist", "skip.js")))).toBe("");
-  expect(await readFile(path.join(outside, "escape.js"), "utf8")).toBe(
-    "const x=1"
-  );
+  expect(await readFile(path.join(outside, "escape.js"), "utf8")).toBe("const x=1");
 });
 
 test("React Doctor is invoked only for React files without a fictional strict flag", async () => {
@@ -228,7 +198,8 @@ test("React Doctor is invoked only for React files without a fictional strict fl
   const bin = path.join(modules, ".bin", "react-doctor");
   await writeFile(
     bin,
-    `#!/bin/sh\nprintf '%s' "$*" > "${args}"\nprintf '{"diagnostics":[{"message":"missing alt"}],"summary":{"totalDiagnosticCount":1}}'`
+    `#!/bin/sh\nprintf '%s' "$*" > "${args}"\n` +
+      'printf \'{"diagnostics":[{"message":"missing alt"}],"summary":{"totalDiagnosticCount":1}}\''
   );
   await chmod(bin, 0o755);
   await writeFile(path.join(root, "package.json"), '{"type":"module"}');
@@ -242,4 +213,11 @@ test("React Doctor is invoked only for React files without a fictional strict fl
   expect(invoked).toContain("View.tsx");
   expect(invoked).toContain("--no-supply-chain");
   expect(invoked).not.toContain("--strict");
+  await writeFile(
+    bin,
+    '#!/bin/sh\nprintf \'{"ok":true,"projects":[{"skippedChecks":["lint"],' +
+      '"skippedCheckReasons":{"lint":"native binding unavailable"}}],"diagnostics":[]}\''
+  );
+  const skipped = await run(event(root, file));
+  expect(skipped).toContain("React Doctor skipped checks: lint: native binding unavailable");
 });
