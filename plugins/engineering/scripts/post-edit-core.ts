@@ -4,7 +4,8 @@ import { access, readFile, realpath, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import {
-  ESLINT_CONFIG,
+  FLAT_ESLINT_CONFIG,
+  LEGACY_ESLINT_CONFIG,
   PRETTIER_DEFAULTS,
   TYPESCRIPT,
   formattingIntegrated,
@@ -13,6 +14,7 @@ import {
   nearest,
   type Finding,
 } from "./post-edit-lint.ts";
+import { dependencyRoot } from "./post-edit-deps.ts";
 
 const SOURCE = /\.(?:[cm]?[jt]s|jsx|tsx)$/i;
 const REACT = /\.(?:jsx|tsx)$/i;
@@ -74,7 +76,7 @@ async function reactDoctor(file: string, root: string, workspace: string) {
     ["node_modules/.bin/react-doctor"],
     workspace
   );
-  if (!bin) return "React Doctor skipped (not installed).";
+  if (!bin) return "";
   const args = [
     file,
     "--json",
@@ -144,15 +146,18 @@ export async function run(event: Event): Promise<string> {
     if (!file.startsWith(`${cwd}${path.sep}`) || SKIP.test(file)) continue;
     const rootConfig = await nearest(path.dirname(file), ["package.json"], cwd);
     const root = rootConfig ? path.dirname(rootConfig) : cwd;
-    const configPath = await nearest(path.dirname(file), ESLINT_CONFIG, cwd);
+    const configPath = await nearest(path.dirname(file), FLAT_ESLINT_CONFIG, cwd);
+    const legacyConfig = configPath
+      ? undefined
+      : await nearest(path.dirname(file), LEGACY_ESLINT_CONFIG, cwd);
     const original = await readFile(file, "utf8");
     let content = original;
     const notes: string[] = [];
     try {
-      if (await formattingIntegrated(file, root, configPath)) {
-        notes.push("Formatting handled by the project's ESLint Prettier rule.");
-      } else {
-        const prettier = await loadModule("prettier", root);
+      if (!(await formattingIntegrated(file, root, configPath)) || legacyConfig) {
+        const prettier = await loadModule("prettier", root).catch(async () =>
+          loadModule("prettier", await dependencyRoot())
+        );
         const ignore = await nearest(
           path.dirname(file),
           [".prettierignore"],
@@ -170,7 +175,9 @@ export async function run(event: Event): Promise<string> {
     } catch (error) {
       notes.push(`Prettier unavailable: ${String(error).slice(0, 180)}`);
     }
-    try {
+    if (legacyConfig) {
+      notes.push("Legacy ESLint config unsupported; lint skipped.");
+    } else try {
       const result = await lint(file, content, root, configPath);
       if (result.ignored) continue;
       content = result.output ?? content;
@@ -178,10 +185,6 @@ export async function run(event: Event): Promise<string> {
         notes.push("Type-aware rules skipped: file is outside its tsconfig.");
       if (result.typedSkipReason)
         notes.push(`Type-aware rules skipped: ${result.typedSkipReason}.`);
-      if (result.reactHooksSkipped)
-        notes.push(
-          "React Hooks rules skipped: eslint-plugin-react-hooks is not installed."
-        );
       if (
         !configPath &&
         TYPESCRIPT.test(file) &&
@@ -189,20 +192,13 @@ export async function run(event: Event): Promise<string> {
       )
         notes.push("Type-aware rules skipped: no project tsconfig.");
       const findings = result.findings as Finding[];
-      for (const item of findings.slice(0, 8)) {
+      for (const item of findings.slice(0, 4)) {
         notes.push(
-          `${item.severity === 2 ? "error" : "warning"}:${item.line ?? 0} ${item.ruleId ?? "parser"}: ${item.message.replaceAll("\n", " ").slice(0, 180)}`
+          `${item.severity === 2 ? "error" : "warning"}:${item.line ?? 0} ${item.ruleId ?? "parser"}: ${item.message.replaceAll("\n", " ").slice(0, 140)}`
         );
       }
-      if (findings.length > 8)
-        notes.push(`... ${findings.length - 8} more findings`);
-      const manual = findings.filter(
-        (item) => !item.ruleId?.startsWith("prettier/")
-      ).length;
-      if (manual)
-        notes.push(
-          `${manual} finding(s) require manual review; other automatic fixes were skipped.`
-        );
+      if (findings.length > 4)
+        notes.push(`... ${findings.length - 4} more findings`);
     } catch (error) {
       notes.push(
         `ESLint unavailable or crashed: ${String(error).slice(0, 220)}`
@@ -211,7 +207,7 @@ export async function run(event: Event): Promise<string> {
     if (content !== original && (await readFile(file, "utf8")) === original) {
       await writeFile(file, content);
       notes.unshift(
-        "Applied formatting and safe lint fixes; re-read this file."
+        "Formatted/fixed; re-read file."
       );
     }
     if (REACT.test(file)) {
@@ -221,7 +217,7 @@ export async function run(event: Event): Promise<string> {
     if (notes.length)
       lines.push(`${path.relative(cwd, file)}: ${notes.join(" | ")}`);
   }
-  return lines.join("\n").slice(0, 11_000);
+  return lines.join("\n").slice(0, 4_000);
 }
 
 if (

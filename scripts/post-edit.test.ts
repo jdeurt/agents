@@ -5,10 +5,13 @@ import os from "node:os";
 import path from "node:path";
 import { editedPaths, run } from "../plugins/engineering/scripts/post-edit-core.ts";
 import { PRETTIER_DEFAULTS } from "../plugins/engineering/scripts/post-edit-lint.ts";
-import { reactDoctorConfig, reactHookRules } from "../eslint.config.ts";
+import { createConfig } from "../eslint.config.ts";
+import reactHooks from "eslint-plugin-react-hooks";
+import reactDoctor from "eslint-plugin-react-doctor";
 
 const roots: string[] = [];
 const deps = path.resolve("node_modules");
+process.env.JDEURT_HOOK_DEPS_ROOT = process.cwd();
 
 test("bundled formatting defaults use a 120-column width", () => {
   expect(PRETTIER_DEFAULTS.printWidth).toBe(120);
@@ -29,36 +32,23 @@ test("JavaScript formatting needs no repository-only TOML plugin", async () => {
   expect(await readFile(file, "utf8")).toBe("const x = 1;\n");
 });
 
-test("React Hooks selects modern flat rules and avoids legacy presets", () => {
-  const plugin = {
-    configs: {
-      flat: {
-        "recommended-latest": {
-          rules: { "react-hooks/unsupported-syntax": "warn" },
-        },
-      },
-      "recommended-latest": {
-        rules: { "react-hooks/rules-of-hooks": "error" },
-      },
-      "recommended-legacy": {
-        rules: { "react-hooks/exhaustive-deps": "error" },
-      },
-    },
-  };
-  expect(reactHookRules(plugin)).toEqual({
-    "react-hooks/unsupported-syntax": "warn",
-  });
-  expect(
-    reactHookRules({
-      configs: { "recommended-legacy": plugin.configs["recommended-legacy"] },
-    })
-  ).toBeUndefined();
+test("React Hooks uses its installed modern flat preset", () => {
+  const config = createConfig({ hook: true }) as {
+    plugins?: Record<string, unknown>;
+    rules?: Record<string, unknown>;
+  }[];
+  const entry = config.find((item) => item.plugins?.["react-hooks"]);
+  expect(entry?.rules).toBe(reactHooks.configs.flat["recommended-latest"].rules);
+  expect(entry?.rules?.["react-hooks/unsupported-syntax"]).toBeDefined();
 });
 
-test("React Doctor uses framework-independent recommended rules", () => {
-  const recommended = { rules: { "react-doctor/no-derived-state": "warn" } };
-  const plugin = { configs: { recommended, all: { rules: { "react-doctor/framework-specific": "error" } } } };
-  expect(reactDoctorConfig(plugin)).toBe(recommended);
+test("React Doctor uses its installed recommended preset", () => {
+  const config = createConfig({ hook: true }) as {
+    plugins?: Record<string, unknown>;
+    rules?: Record<string, unknown>;
+  }[];
+  const entry = config.find((item) => item.plugins?.["react-doctor"]);
+  expect(entry?.rules).toBe(reactDoctor.configs.recommended.rules);
 });
 
 async function fixture() {
@@ -110,12 +100,30 @@ test("formats a touched file, reports lint findings, and is idempotent", async (
   await writeFile(other, "const untouched=  2");
   process.env.JDEURT_EDIT_LINT_ACTIVE = "1";
   const first = await run(event(root, file));
-  expect(first).toContain("Applied formatting and safe lint fixes");
+  expect(first).toContain("Formatted/fixed; re-read file.");
   expect(first).toContain("no-undef");
   expect(await readFile(file, "utf8")).toBe("const bad = 1;\nconsole.log(missing);\n");
   expect(await readFile(other, "utf8")).toBe("const untouched=  2");
   const second = await run(event(root, file));
-  expect(second).not.toContain("Applied formatting");
+  expect(second).not.toContain("Formatted/fixed");
+});
+
+test("project ESLint autofix changes only the edited file and leaves findings nonblocking", async () => {
+  const root = await fixture();
+  const file = path.join(root, "fix.js");
+  const other = path.join(root, "other.js");
+  await writeFile(
+    path.join(root, "eslint.config.mjs"),
+    "export default [{rules:{'prefer-const':'error','no-undef':'error'}}];\n"
+  );
+  await writeFile(file, "let value=1; console.log(value,missing)\n");
+  await writeFile(other, "let untouched=1\n");
+  process.env.JDEURT_EDIT_LINT_ACTIVE = "1";
+  const result = await run(event(root, file));
+  expect(await readFile(file, "utf8")).toBe("const value = 1;\nconsole.log(value, missing);\n");
+  expect(await readFile(other, "utf8")).toBe("let untouched=1\n");
+  expect(result).toContain("re-read file");
+  expect(result).toContain("no-undef");
 });
 
 test("TypeScript without a tsconfig reports the type-aware fallback", async () => {
@@ -174,13 +182,13 @@ test("project ESLint and Prettier config take precedence; no TS outputs", async 
   await writeFile(file, "const greeting =  'hello';\n");
   process.env.JDEURT_EDIT_LINT_ACTIVE = "1";
   const result = await run(event(root, file));
-  expect(result).toContain("Applied formatting");
+  expect(result).toContain("Formatted/fixed");
   expect(await readFile(file, "utf8")).toBe("const greeting = 'hello'\n");
   expect(await Bun.file(path.join(root, "output")).exists()).toBe(false);
   expect(await readFile(path.join(root, "tsconfig.json"), "utf8")).toContain('"strict":false');
 });
 
-test("legacy ESLint config is used without the fallback rule set", async () => {
+test("legacy ESLint config is reported and never run as flat config", async () => {
   const root = await fixture();
   const file = path.join(root, "legacy.js");
   await writeFile(
@@ -190,6 +198,8 @@ test("legacy ESLint config is used without the fallback rule set", async () => {
   await writeFile(file, "const value=1\n");
   process.env.JDEURT_EDIT_LINT_ACTIVE = "1";
   const result = await run(event(root, file));
+  expect(result).toContain("Legacy ESLint config unsupported; lint skipped.");
+  expect(await readFile(file, "utf8")).toBe("const value = 1;\n");
   expect(result).not.toContain("no-unused-vars");
   expect(result).not.toContain("ESLint unavailable");
 });

@@ -1,51 +1,19 @@
-import { createRequire } from "node:module";
-import path from "node:path";
-import { fileURLToPath, pathToFileURL } from "node:url";
+import js from "@eslint/js";
+import tseslint from "typescript-eslint";
+import unicorn from "eslint-plugin-unicorn";
+import reactHooks from "eslint-plugin-react-hooks";
+import reactDoctorLint from "eslint-plugin-react-doctor";
+import prettierRecommended from "eslint-plugin-prettier/recommended";
+import { fileURLToPath } from "node:url";
 
-// The build copies this file into Engineering. The hook resolves dependencies
-// from the edited project, while repository lint resolves its own dependencies.
-const resolutionRoot = process.env.JDEURT_EDIT_LINT_PROJECT_ROOT ?? fileURLToPath(new URL(".", import.meta.url));
-const require = createRequire(path.join(resolutionRoot, "package.json"));
-async function load(name: string) {
-  const module = await import(pathToFileURL(require.resolve(name)).href);
-  return module.default;
-}
-async function optional(name: string) {
-  try {
-    return await load(name);
-  } catch {
-    return undefined;
-  }
-}
-
-const js = await load("@eslint/js");
-const tseslint = await load("typescript-eslint");
-const unicorn = await load("eslint-plugin-unicorn");
-const reactHooks = await optional("eslint-plugin-react-hooks");
-const reactDoctorLint = await optional("eslint-plugin-react-doctor");
-const prettier = await optional("eslint-plugin-prettier/recommended");
-
-export function reactHookRules(
-  plugin:
-    | {
-        configs?: { flat?: Record<string, { rules?: Record<string, unknown> }>; [name: string]: unknown };
-      }
-    | undefined
-) {
-  const modern = plugin?.configs?.flat?.["recommended-latest"]?.rules;
-  const older = plugin?.configs?.["recommended-latest"] as { rules?: Record<string, unknown> } | undefined;
-  return modern ?? older?.rules;
-}
-export function reactDoctorConfig(plugin: { configs?: Record<string, Record<string, unknown>> } | undefined) {
-  return plugin?.configs?.recommended;
-}
-export const reactHooksAvailable = Boolean(reactHookRules(reactHooks));
-export const formattingIntegrated = Boolean(prettier);
+// The build copies this source and bundles these pinned dependencies for Engineering.
+const resolutionRoot = fileURLToPath(new URL(".", import.meta.url));
+export const formattingIntegrated = true;
 
 export function createConfig(options: { typed?: boolean; tsconfigRootDir?: string; hook?: boolean } = {}) {
   const files = ["**/*.{ts,tsx,js,jsx,mjs,cjs,mts,cts}"];
   const tsFiles = ["**/*.{ts,tsx,mts,cts}"];
-  const reactRules = reactHookRules(reactHooks);
+  const reactRules = reactHooks.configs.flat["recommended-latest"].rules;
   return [
     ...(options.hook ? [] : [{ ignores: ["dist/**", "node_modules/**", ".marketplace-build/**", "plugins/**"] }]),
     { ...js.configs.recommended, files },
@@ -79,12 +47,8 @@ export function createConfig(options: { typed?: boolean; tsconfigRootDir?: strin
         "@typescript-eslint/no-unused-vars": ["warn", { argsIgnorePattern: "^_.*", varsIgnorePattern: "^_.*" }],
       },
     },
-    ...(reactRules && reactHooks
-      ? [{ files: ["**/*.{jsx,tsx}"], plugins: { "react-hooks": reactHooks }, rules: reactRules }]
-      : []),
-    ...(reactDoctorConfig(reactDoctorLint)
-      ? [{ ...reactDoctorConfig(reactDoctorLint), files: ["**/*.{jsx,tsx}"] }]
-      : []),
+    { files: ["**/*.{jsx,tsx}"], plugins: { "react-hooks": reactHooks }, rules: reactRules },
+    { ...reactDoctorLint.configs.recommended, files: ["**/*.{jsx,tsx}"] },
     ...(options.typed
       ? [
           {
@@ -95,7 +59,7 @@ export function createConfig(options: { typed?: boolean; tsconfigRootDir?: strin
           },
         ]
       : []),
-    ...(prettier ? [prettier] : []),
+    prettierRecommended,
   ];
 }
 

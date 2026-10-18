@@ -59,6 +59,15 @@ jobs:
           bunx @openai/codex@0.162.0 plugin marketplace add "$GITHUB_WORKSPACE/.marketplace-build" --json
           bunx @openai/codex@0.162.0 plugin add jdeurt-design@agents --json
           bunx @openai/codex@0.162.0 plugin add jdeurt-engineering@agents --json
+      - name: Smoke-test packaged edit hook and private dependencies
+        run: |
+          fixture="$(mktemp -d)"
+          trap 'rm -rf "$fixture"' EXIT
+          mkdir -p "$fixture/project" "$fixture/cache"
+          printf 'const value=  1\nconsole.log(missing)\n' > "$fixture/project/source.js"
+          printf '{"cwd":"%s","tool_name":"Write","tool_input":{"file_path":"%s"}}\n' "$fixture/project" "$fixture/project/source.js" |
+            XDG_CACHE_HOME="$fixture/cache" bun .marketplace-build/dist/codex/plugins/engineering/scripts/post-edit.ts > "$fixture/result.json"
+          node -e 'const fs=require("fs");const path=process.argv[1];const result=JSON.parse(fs.readFileSync(path+"/result.json","utf8"));const note=result.hookSpecificOutput.additionalContext;if(!note.includes("no-undef")||!note.includes("re-read file"))process.exit(1);if(fs.readFileSync(path+"/project/source.js","utf8")!=="const value = 1;\nconsole.log(missing);\n")process.exit(1);if(!fs.existsSync(path+"/cache/jdeurt-engineering"))process.exit(1);' "$fixture"
   publish:
     needs: check
     if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request' && github.event_name != 'merge_group'

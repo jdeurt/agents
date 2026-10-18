@@ -29,6 +29,9 @@ assets = [
   "scripts/post-edit.ts",
   "scripts/post-edit-core.ts",
   "scripts/post-edit-lint.ts",
+  "scripts/post-edit-deps.ts",
+  "hook-deps/package.json",
+  "hook-deps/bun.lock",
   "eslint.config.ts",
   "prettier.config.mjs"
 ]

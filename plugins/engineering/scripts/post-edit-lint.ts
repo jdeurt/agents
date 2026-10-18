@@ -3,15 +3,18 @@ import { access } from "node:fs/promises";
 import { createRequire } from "node:module";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
+import { configPath, dependencyRoot } from "./post-edit-deps.ts";
 
 export const TYPESCRIPT = /\.(?:[cm]?ts|tsx)$/i;
-export const ESLINT_CONFIG = [
+export const FLAT_ESLINT_CONFIG = [
   "eslint.config.js",
   "eslint.config.mjs",
   "eslint.config.cjs",
   "eslint.config.ts",
   "eslint.config.mts",
   "eslint.config.cts",
+];
+export const LEGACY_ESLINT_CONFIG = [
   ".eslintrc",
   ".eslintrc.js",
   ".eslintrc.cjs",
@@ -19,8 +22,6 @@ export const ESLINT_CONFIG = [
   ".eslintrc.yaml",
   ".eslintrc.yml",
 ];
-const packagedConfig = new URL("../eslint.config.ts", import.meta.url);
-const sourceConfig = new URL("../../../eslint.config.ts", import.meta.url);
 const packagedPrettier = new URL("../prettier.config.mjs", import.meta.url);
 const sourcePrettier = new URL("../../../prettier.config.mjs", import.meta.url);
 export const PRETTIER_DEFAULTS = (await import(
@@ -60,16 +61,8 @@ export async function loadModule(name: string, directory: string) {
   return import(pathToFileURL(require.resolve(name)).href);
 }
 
-async function sharedConfig(root: string) {
-  const prior = process.env.JDEURT_EDIT_LINT_PROJECT_ROOT;
-  process.env.JDEURT_EDIT_LINT_PROJECT_ROOT = root;
-  try {
-    const file = existsSync(packagedConfig) ? packagedConfig : sourceConfig;
-    return await import(`${file.href}?project=${encodeURIComponent(root)}`);
-  } finally {
-    if (prior === undefined) delete process.env.JDEURT_EDIT_LINT_PROJECT_ROOT;
-    else process.env.JDEURT_EDIT_LINT_PROJECT_ROOT = prior;
-  }
+async function sharedConfig() {
+  return import(pathToFileURL(configPath(await dependencyRoot())).href);
 }
 
 async function fallbackConfig(
@@ -77,13 +70,13 @@ async function fallbackConfig(
   root: string,
   forceUntyped = false
 ) {
-  const shared = await sharedConfig(root);
+  const shared = await sharedConfig();
   const tsconfig = await nearest(path.dirname(file), ["tsconfig.json"], root);
   let typed = Boolean(!forceUntyped && tsconfig && TYPESCRIPT.test(file));
   let typedSkipReason: string | undefined;
   if (typed) {
     try {
-      const ts = (await loadModule("typescript", root)).default;
+      const ts = (await loadModule("typescript", await dependencyRoot())).default;
       const document = ts.readConfigFile(tsconfig, ts.sys.readFile);
       if (document.error) throw new Error("invalid tsconfig");
       const parsed = ts.parseJsonConfigFileContent(
@@ -110,7 +103,6 @@ async function fallbackConfig(
     typed,
     typedSkipReason,
     integrated: shared.formattingIntegrated,
-    reactHooksSkipped: /\.(?:jsx|tsx)$/i.test(file) && !shared.reactHooksAvailable,
   };
 }
 
@@ -128,11 +120,7 @@ export async function formattingIntegrated(
   }
   try {
     const eslintModule = await loadModule("eslint", root);
-    const legacy = path.basename(configPath).startsWith(".eslintrc");
-    const ESLint = eslintModule.loadESLint
-      ? await eslintModule.loadESLint({ useFlatConfig: !legacy })
-      : eslintModule.ESLint;
-    const engine = new ESLint({ cwd: path.dirname(configPath) });
+    const engine = new eslintModule.ESLint({ cwd: path.dirname(configPath) });
     const config = await engine.calculateConfigForFile(file);
     const rule = config?.rules?.["prettier/prettier"];
     return (
@@ -152,17 +140,16 @@ export async function lint(
   root: string,
   configPath: string | undefined
 ) {
-  const eslintModule = await loadModule("eslint", root);
-  const legacy =
-    configPath && path.basename(configPath).startsWith(".eslintrc");
-  const ESLint = eslintModule.loadESLint
-    ? await eslintModule.loadESLint({ useFlatConfig: !legacy })
-    : eslintModule.ESLint;
   const fallback = configPath ? undefined : await fallbackConfig(file, root);
+  const eslintModule = fallback
+    ? await loadModule("eslint", await dependencyRoot())
+    : await loadModule("eslint", root).catch(async () =>
+        loadModule("eslint", await dependencyRoot())
+      );
+  const ESLint = eslintModule.ESLint;
   const options: Record<string, unknown> = {
     cwd: configPath ? path.dirname(configPath) : root,
-    // Only accept fixes supplied by the formatting plugin itself.
-    fix: (finding: Finding) => finding.ruleId?.startsWith("prettier/") ?? false,
+    fix: true,
   };
   if (fallback) {
     options.overrideConfigFile = true;
@@ -187,7 +174,6 @@ export async function lint(
     const retry = new ESLint({
       ...options,
       overrideConfig: untyped.config,
-      fix: options.fix,
     });
     result = (await retry.lintText(content, { filePath: file }))[0];
     typedSkipped = true;
@@ -198,6 +184,5 @@ export async function lint(
     findings: result?.messages ?? [],
     typedSkipped,
     typedSkipReason: fallback?.typedSkipReason,
-    reactHooksSkipped: fallback?.reactHooksSkipped,
   };
 }
