@@ -85,6 +85,37 @@ test("extracts only explicit edited JS/TS paths from batch and patch input", () 
     })
   ).toEqual(["new.cjs", "path/x.tsx"]);
   expect(editedPaths({ tool_name: "Bash", tool_input: { file_path: "a.ts" } })).toEqual([]);
+  expect(
+    editedPaths({
+      tool_name: "apply_patch",
+      tool_input: { command: "*** Begin Patch\n*** Add File: /tmp/a space.mjs\n+x\n*** End Patch" },
+    })
+  ).toEqual(["/tmp/a space.mjs"]);
+});
+
+test("native Codex PostToolUse string response formats and reports findings", async () => {
+  const root = await fixture();
+  const file = path.join(root, "example.js");
+  await writeFile(
+    path.join(root, "eslint.config.mjs"),
+    "export default [{rules:{'prefer-const':'error','no-undef':'error'}}];\n"
+  );
+  await writeFile(file, "let count=1;\nconsole.log(count,missing);\n");
+  const result = spawnSync(process.execPath, ["plugins/engineering/scripts/post-edit-core.ts"], {
+    cwd: process.cwd(),
+    env: { ...process.env, JDEURT_EDIT_LINT_ACTIVE: "1" },
+    input: JSON.stringify({
+      cwd: root,
+      tool_name: "apply_patch",
+      tool_input: { command: `*** Begin Patch\n*** Add File: ${file}\n+let count=1;\n*** End Patch` },
+      tool_response: `Success. Updated the following files:\nA ${file}`,
+    }),
+    encoding: "utf8",
+  });
+  expect(result.status).toBe(0);
+  expect(result.stdout).toContain("Formatted/fixed; re-read file.");
+  expect(result.stdout).toContain("no-undef");
+  expect(await readFile(file, "utf8")).toBe("const count = 1;\nconsole.log(count, missing);\n");
 });
 
 test("formats a touched file, reports lint findings, and is idempotent", async () => {
