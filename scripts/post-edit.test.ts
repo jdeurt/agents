@@ -5,13 +5,28 @@ import os from "node:os";
 import path from "node:path";
 import { editedPaths, run } from "../plugins/engineering/scripts/post-edit-core.ts";
 import { PRETTIER_DEFAULTS } from "../plugins/engineering/scripts/post-edit-lint.ts";
-import { reactHookRules } from "../eslint.config.ts";
+import { reactDoctorConfig, reactHookRules } from "../eslint.config.ts";
 
 const roots: string[] = [];
 const deps = path.resolve("node_modules");
 
 test("bundled formatting defaults use a 120-column width", () => {
   expect(PRETTIER_DEFAULTS.printWidth).toBe(120);
+});
+
+test("JavaScript formatting needs no repository-only TOML plugin", async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "engineering-prettier-"));
+  roots.push(root);
+  const modules = path.join(root, "node_modules");
+  await mkdir(modules);
+  await symlink(path.join(deps, "prettier"), path.join(modules, "prettier"));
+  await writeFile(path.join(root, "package.json"), '{"type":"module"}');
+  const file = path.join(root, "plain.js");
+  await writeFile(file, "const x=1\n");
+  process.env.JDEURT_EDIT_LINT_ACTIVE = "1";
+  const result = await run(event(root, file));
+  expect(result).not.toContain("Prettier unavailable");
+  expect(await readFile(file, "utf8")).toBe("const x = 1;\n");
 });
 
 test("React Hooks selects modern flat rules and avoids legacy presets", () => {
@@ -38,6 +53,12 @@ test("React Hooks selects modern flat rules and avoids legacy presets", () => {
       configs: { "recommended-legacy": plugin.configs["recommended-legacy"] },
     })
   ).toBeUndefined();
+});
+
+test("React Doctor uses framework-independent recommended rules", () => {
+  const recommended = { rules: { "react-doctor/no-derived-state": "warn" } };
+  const plugin = { configs: { recommended, all: { rules: { "react-doctor/framework-specific": "error" } } } };
+  expect(reactDoctorConfig(plugin)).toBe(recommended);
 });
 
 async function fixture() {

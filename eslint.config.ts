@@ -22,6 +22,7 @@ const js = await load("@eslint/js");
 const tseslint = await load("typescript-eslint");
 const unicorn = await load("eslint-plugin-unicorn");
 const reactHooks = await optional("eslint-plugin-react-hooks");
+const reactDoctorLint = await optional("eslint-plugin-react-doctor");
 const prettier = await optional("eslint-plugin-prettier/recommended");
 
 export function reactHookRules(
@@ -34,6 +35,9 @@ export function reactHookRules(
   const modern = plugin?.configs?.flat?.["recommended-latest"]?.rules;
   const older = plugin?.configs?.["recommended-latest"] as { rules?: Record<string, unknown> } | undefined;
   return modern ?? older?.rules;
+}
+export function reactDoctorConfig(plugin: { configs?: Record<string, Record<string, unknown>> } | undefined) {
+  return plugin?.configs?.recommended;
 }
 export const reactHooksAvailable = Boolean(reactHookRules(reactHooks));
 export const formattingIntegrated = Boolean(prettier);
@@ -77,6 +81,9 @@ export function createConfig(options: { typed?: boolean; tsconfigRootDir?: strin
     },
     ...(reactRules && reactHooks
       ? [{ files: ["**/*.{jsx,tsx}"], plugins: { "react-hooks": reactHooks }, rules: reactRules }]
+      : []),
+    ...(reactDoctorConfig(reactDoctorLint)
+      ? [{ ...reactDoctorConfig(reactDoctorLint), files: ["**/*.{jsx,tsx}"] }]
       : []),
     ...(options.typed
       ? [
