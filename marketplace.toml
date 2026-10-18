@@ -18,11 +18,14 @@ url = "https://api.mobbin.com/mcp"
 
 [[plugins]]
 name = "engineering"
-version = "1.0.0"
-description = "Build with Bun TypeScript and current Bun documentation."
+version = "1.1.0"
+description = "Build with Bun TypeScript and format and lint edited JavaScript and TypeScript files."
 harnesses = ["claude", "codex"]
 category = "Development"
 authentication = "on-use"
+
+[plugins.soubi]
+assets = ["scripts/post-edit.ts", "scripts/post-edit-core.ts"]
 
 [plugins.soubi.mcpServers.bun]
 transport = "http"
