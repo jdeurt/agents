@@ -24,7 +24,7 @@ const eventSchema = z.object({
   cwd: z.optional(z.string()),
   tool_name: z.optional(z.string()),
   tool_input: z.optional(z.record(z.string(), z.unknown())),
-  tool_response: z.optional(z.record(z.string(), z.unknown())),
+  tool_response: z.optional(z.unknown()),
 });
 type Event = z.infer<typeof eventSchema>;
 const doctorReport = z.object({
@@ -61,7 +61,7 @@ export function editedPaths(event: Event): string[] {
     }
   }
   if (tool === "apply_patch") {
-    const patch = input.patch ?? input.patch_text;
+    const patch = input.command ?? input.patch ?? input.patch_text;
     if (typeof patch === "string") {
       for (const match of patch.matchAll(
         /^\*\*\* (?:Add|Update) File: (.+)$/gm
@@ -141,7 +141,13 @@ async function reactDoctor(file: string, root: string, workspace: string) {
 export async function run(event: Event): Promise<string> {
   if (process.env.JDEURT_EDIT_LINT_ACTIVE !== "1")
     return "Edit lint core must run through its bounded hook wrapper.";
-  if (event.tool_response?.isError === true) return "";
+  if (
+    event.tool_response &&
+    typeof event.tool_response === "object" &&
+    "isError" in event.tool_response &&
+    event.tool_response.isError === true
+  )
+    return "";
   const suppliedCwd = path.resolve(event.cwd ?? process.cwd());
   const cwd = await realpath(suppliedCwd);
   const lines: string[] = [];
