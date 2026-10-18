@@ -18,9 +18,10 @@ export function createConfig(options: { typed?: boolean; tsconfigRootDir?: strin
     ...(options.hook ? [] : [{ ignores: ["dist/**", "node_modules/**", ".marketplace-build/**"] }]),
     { ...js.configs.recommended, files },
     { ...unicorn.configs.recommended, files },
-    ...(options.typed ? ["strictTypeChecked", "stylisticTypeChecked"] : ["strict", "stylistic"])
-      .flatMap((name) => tseslint.configs[name] ?? [])
-      .map((entry: Record<string, unknown>) => ({ ...entry, files: tsFiles })),
+    ...(options.typed
+      ? [...tseslint.configs.strictTypeChecked, ...tseslint.configs.stylisticTypeChecked]
+      : [...tseslint.configs.strict, ...tseslint.configs.stylistic]
+    ).map((entry: Record<string, unknown>) => ({ ...entry, files: tsFiles })),
     {
       files,
       languageOptions: {
