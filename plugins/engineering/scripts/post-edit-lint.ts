@@ -1,4 +1,4 @@
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync } from "node:fs";
 import { access } from "node:fs/promises";
 import { createRequire } from "node:module";
 import path from "node:path";
@@ -19,14 +19,14 @@ export const ESLINT_CONFIG = [
   ".eslintrc.yaml",
   ".eslintrc.yml",
 ];
-const packaged = new URL("../config/engineering-lint.json", import.meta.url);
+const packaged = new URL("../config/engineering-lint.mjs", import.meta.url);
 const source = new URL(
-  "../../../config/engineering-lint.json",
+  "../../../config/engineering-lint.mjs",
   import.meta.url
 );
-const defaults = JSON.parse(
-  readFileSync(existsSync(packaged) ? packaged : source, "utf8")
-) as {
+const defaults = (await import(
+  (existsSync(packaged) ? packaged : source).href
+)).default as {
   eslint: {
     javascript: string;
     unicorn: string;
@@ -75,6 +75,13 @@ export async function loadModule(name: string, directory: string) {
   return import(pathToFileURL(require.resolve(name)).href);
 }
 
+export function reactHookRules(plugin: {
+  configs: Record<string, any> & { flat?: Record<string, any> };
+}) {
+  const name = defaults.eslint.reactHooks;
+  return plugin.configs.flat?.[name]?.rules ?? plugin.configs[name]?.rules;
+}
+
 async function fallbackConfig(
   file: string,
   root: string,
@@ -114,10 +121,12 @@ async function fallbackConfig(
     typed ? defaults.eslint.typescriptTyped : defaults.eslint.typescriptUntyped
   ).flatMap((name: string) => tseslint.configs[name] ?? []);
   let reactHooks: any;
+  let reactRules: Record<string, unknown> | undefined;
   if (/\.(?:jsx|tsx)$/i.test(file)) {
     try {
       reactHooks = (await loadModule("eslint-plugin-react-hooks", root))
         .default;
+      reactRules = reactHookRules(reactHooks);
     } catch {
       // Report the missing optional React rule set to the agent.
     }
@@ -141,12 +150,12 @@ async function fallbackConfig(
       {
         rules: defaults.eslint.rules,
       },
-      ...(reactHooks
+      ...(reactHooks && reactRules
         ? [
             {
               files: ["**/*.{jsx,tsx}"],
               plugins: { "react-hooks": reactHooks },
-              rules: reactHooks.configs[defaults.eslint.reactHooks].rules,
+              rules: reactRules,
             },
           ]
         : []),
@@ -168,7 +177,7 @@ async function fallbackConfig(
     typed,
     typedSkipReason,
     integrated: Boolean(prettierRecommended),
-    reactHooksSkipped: /\.(?:jsx|tsx)$/i.test(file) && !reactHooks,
+    reactHooksSkipped: /\.(?:jsx|tsx)$/i.test(file) && !reactRules,
   };
 }
 

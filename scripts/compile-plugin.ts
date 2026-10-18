@@ -122,9 +122,9 @@ export async function compilePlugin(
   const project = path.join(staging, plugin.name);
   await cp(source, project, { recursive: true, dereference: true, filter });
   if (plugin.name === "engineering") {
-    const target = path.join(project, "config/engineering-lint.json");
+    const target = path.join(project, "config/engineering-lint.mjs");
     await mkdir(path.dirname(target), { recursive: true });
-    await cp(path.join(root, "config/engineering-lint.json"), target);
+    await cp(path.join(root, "config/engineering-lint.mjs"), target);
   }
   const config = {
     ...plugin.soubi,

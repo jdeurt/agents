@@ -15,13 +15,42 @@ import {
   editedPaths,
   run,
 } from "../plugins/engineering/scripts/post-edit-core.ts";
-import { PRETTIER_DEFAULTS } from "../plugins/engineering/scripts/post-edit-lint.ts";
+import {
+  PRETTIER_DEFAULTS,
+  reactHookRules,
+} from "../plugins/engineering/scripts/post-edit-lint.ts";
 
 const roots: string[] = [];
 const deps = path.resolve("node_modules");
 
 test("bundled formatting defaults use a 120-column width", () => {
   expect(PRETTIER_DEFAULTS.printWidth).toBe(120);
+});
+
+test("React Hooks selects modern flat rules and avoids legacy presets", () => {
+  const plugin = {
+    configs: {
+      flat: {
+        "recommended-latest": {
+          rules: { "react-hooks/unsupported-syntax": "warn" },
+        },
+      },
+      "recommended-latest": {
+        rules: { "react-hooks/rules-of-hooks": "error" },
+      },
+      "recommended-legacy": {
+        rules: { "react-hooks/exhaustive-deps": "error" },
+      },
+    },
+  };
+  expect(reactHookRules(plugin)).toEqual({
+    "react-hooks/unsupported-syntax": "warn",
+  });
+  expect(
+    reactHookRules({
+      configs: { "recommended-legacy": plugin.configs["recommended-legacy"] },
+    })
+  ).toBeUndefined();
 });
 
 async function fixture() {
