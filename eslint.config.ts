@@ -15,7 +15,7 @@ export function createConfig(options: { typed?: boolean; tsconfigRootDir?: strin
   const tsFiles = ["**/*.{ts,tsx,mts,cts}"];
   const reactRules = reactHooks.configs.flat["recommended-latest"].rules;
   return [
-    ...(options.hook ? [] : [{ ignores: ["dist/**", "node_modules/**", ".marketplace-build/**", "plugins/**"] }]),
+    ...(options.hook ? [] : [{ ignores: ["dist/**", "node_modules/**", ".marketplace-build/**"] }]),
     { ...js.configs.recommended, files },
     { ...unicorn.configs.recommended, files },
     ...(options.typed ? ["strictTypeChecked", "stylisticTypeChecked"] : ["strict", "stylistic"])

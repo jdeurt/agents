@@ -4,7 +4,7 @@ import { fileURLToPath } from "node:url";
 
 // Keep the host hook successful even if a linter crashes or exceeds its budget.
 const input = readFileSync(0, "utf8");
-const script = fileURLToPath(new URL("./post-edit-core.ts", import.meta.url));
+const script = fileURLToPath(new URL("post-edit-core.ts", import.meta.url));
 const child = spawn("bun", [script], {
   env: { ...process.env, JDEURT_EDIT_LINT_ACTIVE: "1" },
   stdio: ["pipe", "pipe", "pipe"],

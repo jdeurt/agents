@@ -24,16 +24,17 @@ export const LEGACY_ESLINT_CONFIG = [
 ];
 const packagedPrettier = new URL("../prettier.config.mjs", import.meta.url);
 const sourcePrettier = new URL("../../../prettier.config.mjs", import.meta.url);
-export const PRETTIER_DEFAULTS = (await import(
+const prettierModule = await import(
   (existsSync(packagedPrettier) ? packagedPrettier : sourcePrettier).href
-)).default;
-export type Finding = {
+);
+export const PRETTIER_DEFAULTS = prettierModule.default;
+export interface Finding {
   ruleId?: string | null;
   severity: number;
   line?: number;
   message: string;
   fatal?: boolean;
-};
+}
 const exists = async (name: string) => {
   try {
     await access(name);
@@ -76,15 +77,17 @@ async function fallbackConfig(
   let typedSkipReason: string | undefined;
   if (typed) {
     try {
-      const ts = (await loadModule("typescript", await dependencyRoot())).default;
+      if (!tsconfig) throw new Error("missing tsconfig");
+      const tsModule = await loadModule("typescript", await dependencyRoot());
+      const ts = tsModule.default;
       const document = ts.readConfigFile(tsconfig, ts.sys.readFile);
       if (document.error) throw new Error("invalid tsconfig");
       const parsed = ts.parseJsonConfigFileContent(
         document.config,
         ts.sys,
-        path.dirname(tsconfig!)
+        path.dirname(tsconfig)
       );
-      if (parsed.errors.length) throw new Error("invalid tsconfig");
+      if (parsed.errors.length > 0) throw new Error("invalid tsconfig");
       if (!(
         parsed.options.strictNullChecks ??
         parsed.options.strict ??
@@ -113,7 +116,8 @@ export async function formattingIntegrated(
 ) {
   if (!configPath) {
     try {
-      return (await fallbackConfig(file, root)).integrated;
+      const fallback = await fallbackConfig(file, root);
+      return fallback.integrated;
     } catch {
       return false;
     }
@@ -158,8 +162,10 @@ export async function lint(
   const engine = new ESLint(options);
   if (await engine.isPathIgnored(file))
     return { ignored: true, findings: [] as Finding[] };
-  const run = async () =>
-    (await engine.lintText(content, { filePath: file }))[0];
+  const run = async () => {
+    const results = await engine.lintText(content, { filePath: file });
+    return results[0];
+  };
   let result = await run();
   let typedSkipped = false;
   if (
@@ -175,7 +181,8 @@ export async function lint(
       ...options,
       overrideConfig: untyped.config,
     });
-    result = (await retry.lintText(content, { filePath: file }))[0];
+    const results = await retry.lintText(content, { filePath: file });
+    result = results[0];
     typedSkipped = true;
   }
   return {

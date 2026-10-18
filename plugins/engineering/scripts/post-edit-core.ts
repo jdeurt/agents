@@ -21,12 +21,12 @@ const REACT = /\.(?:jsx|tsx)$/i;
 const SKIP =
   /(^|\/)(?:node_modules|dist|build|coverage|\.next|\.output|\.git|generated)(\/|$)/;
 
-type Event = {
+interface Event {
   cwd?: string;
   tool_name?: string;
   tool_input?: Record<string, unknown>;
   tool_response?: Record<string, unknown>;
-};
+}
 const exists = async (name: string) => {
   try {
     await access(name);
@@ -93,7 +93,7 @@ async function reactDoctor(file: string, root: string, workspace: string) {
   child.stdout.on("data", (data: Buffer) => {
     if (output.length < 24_000) output += data.toString();
   });
-  const timer = setTimeout(() => child.kill("SIGKILL"), 9_000);
+  const timer = setTimeout(() => child.kill("SIGKILL"), 9000);
   const code = await new Promise<number | null>((resolve) => {
     child.on("close", resolve);
     child.on("error", () => resolve(-1));
@@ -111,7 +111,7 @@ async function reactDoctor(file: string, root: string, workspace: string) {
           )
         )
       : [];
-    if (skipped.length)
+    if (skipped.length > 0)
       return `React Doctor skipped checks: ${skipped.slice(0, 2).join("; ").slice(0, 220)}`;
     const diagnostics = Array.isArray(report.diagnostics)
       ? report.diagnostics
@@ -167,7 +167,7 @@ export async function run(event: Event): Promise<string> {
         if (info.ignored) continue;
         const options = await prettier.resolveConfig(file);
         content = await prettier.format(content, {
-          ...(!options ? PRETTIER_DEFAULTS : {}),
+          ...(options ? {} : PRETTIER_DEFAULTS),
           ...options,
           filepath: file,
         });
@@ -214,10 +214,10 @@ export async function run(event: Event): Promise<string> {
       const doctor = await reactDoctor(file, root, cwd);
       if (doctor) notes.push(doctor);
     }
-    if (notes.length)
+    if (notes.length > 0)
       lines.push(`${path.relative(cwd, file)}: ${notes.join(" | ")}`);
   }
-  return lines.join("\n").slice(0, 4_000);
+  return lines.join("\n").slice(0, 4000);
 }
 
 if (

@@ -9,6 +9,6 @@ export default defineHook({
     type: "command",
     command:
       'if command -v bun >/dev/null 2>&1; then bun "${PLUGIN_ROOT}/scripts/post-edit.ts"; else printf \'%s\\n\' \'{"hookSpecificOutput":{"hookEventName":"PostToolUse","additionalContext":"Bun is not installed. Please install Bun to enable the engineering edit hook."}}\'; fi',
-    timeoutMs: 30000,
+    timeoutMs: 30_000,
   },
 });
