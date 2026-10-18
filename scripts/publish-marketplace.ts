@@ -6,8 +6,8 @@ import { readFile, writeFile } from "./io.ts";
 import { buildMarketplace } from "./build-marketplace.ts";
 import { withResolvedSources } from "./resolve-sources.ts";
 import { git } from "./git.ts";
-import { releaseVersions } from "./release-versions.ts";
-import type { Registry } from "./types.ts";
+import { releaseVersions, releaseStateSchema } from "./release-versions.ts";
+import { parseRegistry } from "./validation.ts";
 
 const ROOT = fileURLToPath(new URL("../", import.meta.url));
 const BRANCH = "refs/heads/marketplace";
@@ -51,9 +51,11 @@ export async function publishMarketplace({ root = ROOT, dryRun = false } = {}) {
         check: true,
       });
     });
-    const registry = Bun.TOML.parse(await readFile(path.join(root, "marketplace.toml"), "utf8")) as unknown as Registry;
+    const registry = parseRegistry(Bun.TOML.parse(await readFile(path.join(root, "marketplace.toml"), "utf8")));
     const hasState = previous && git(root, ["ls-tree", "--name-only", previous, ".publication.json"]);
-    const state = hasState ? JSON.parse(git(root, ["show", `${previous}:.publication.json`])) : {};
+    const state = hasState
+      ? releaseStateSchema.parse(JSON.parse(git(root, ["show", `${previous}:.publication.json`])))
+      : {};
     await releaseVersions(output, registry, state);
     await writeFile(path.join(output, "README.md"), await readFile(path.join(root, "README.md")));
     if (dryRun) {

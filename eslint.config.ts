@@ -5,6 +5,7 @@ import reactHooks from "eslint-plugin-react-hooks";
 import reactDoctorLint from "eslint-plugin-react-doctor";
 import prettierRecommended from "eslint-plugin-prettier/recommended";
 import { fileURLToPath } from "node:url";
+import { defineConfig } from "eslint/config";
 
 // The build copies this source and bundles these pinned dependencies for Engineering.
 const resolutionRoot = fileURLToPath(new URL(".", import.meta.url));
@@ -14,7 +15,7 @@ export function createConfig(options: { typed?: boolean; tsconfigRootDir?: strin
   const files = ["**/*.{ts,tsx,js,jsx,mjs,cjs,mts,cts}"];
   const tsFiles = ["**/*.{ts,tsx,mts,cts}"];
   const reactRules = reactHooks.configs.flat["recommended-latest"].rules;
-  return [
+  return defineConfig([
     ...(options.hook ? [] : [{ ignores: ["dist/**", "node_modules/**", ".marketplace-build/**"] }]),
     { ...js.configs.recommended, files },
     { ...unicorn.configs.recommended, files },
@@ -46,9 +47,19 @@ export function createConfig(options: { typed?: boolean; tsconfigRootDir?: strin
       rules: {
         "@typescript-eslint/consistent-type-imports": "error",
         "@typescript-eslint/no-unused-vars": ["warn", { argsIgnorePattern: "^_.*", varsIgnorePattern: "^_.*" }],
+        "no-restricted-syntax": [
+          "error",
+          {
+            selector: ":matches(TSAsExpression, TSTypeAssertion) > :matches(TSAsExpression, TSTypeAssertion)",
+            message: "Validate the value instead of chaining type assertions.",
+          },
+        ],
       },
     },
-    { files: ["**/*.{jsx,tsx}"], plugins: { "react-hooks": reactHooks }, rules: reactRules },
+    ...(options.typed
+      ? [{ files: tsFiles, rules: { "@typescript-eslint/no-unsafe-type-assertion": "error" as const } }]
+      : []),
+    { files: ["**/*.{jsx,tsx}"], plugins: { "react-hooks": { rules: reactHooks.rules } }, rules: reactRules },
     { ...reactDoctorLint.configs.recommended, files: ["**/*.{jsx,tsx}"] },
     ...(options.typed
       ? [
@@ -61,7 +72,7 @@ export function createConfig(options: { typed?: boolean; tsconfigRootDir?: strin
         ]
       : []),
     prettierRecommended,
-  ];
+  ]);
 }
 
-export default createConfig();
+export default createConfig({ typed: true });

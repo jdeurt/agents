@@ -9,7 +9,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const ROOT = fileURLToPath(new URL("../", import.meta.url));
-export function inside(root, relative) {
+export function inside(root: string, relative: string) {
   if (
     typeof relative !== "string" ||
     !relative ||
@@ -21,9 +21,9 @@ export function inside(root, relative) {
   if (!resolved.startsWith(path.resolve(root) + path.sep)) throw new Error(`Unsafe import path: ${relative}`);
   return resolved;
 }
-export async function digest(directory) {
+export async function digest(directory: string) {
   const hash = new Bun.CryptoHasher("sha256");
-  async function walk(dir, prefix = "") {
+  async function walk(dir: string, prefix = ""): Promise<void> {
     const resolvedValue1 = await readdir(dir);
     for (const name of resolvedValue1.sort()) {
       const file = path.join(dir, name),

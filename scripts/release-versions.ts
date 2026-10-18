@@ -3,8 +3,11 @@ import { readFile, writeFile } from "./io.ts";
 import { filesIn } from "./build-files.ts";
 import { digest } from "./sync-imports.ts";
 import type { Registry } from "./types.ts";
+import * as z from "zod/mini";
+import { jsonRecord } from "./validation.ts";
 
-export type ReleaseState = Record<string, { hash: string; version: string }>;
+export type ReleaseState = Record<string, { hash: string; version: string } | undefined>;
+export const releaseStateSchema = z.record(z.string(), z.object({ hash: z.string(), version: z.string() }));
 export function nextVersion(base: string, previous?: string) {
   if (!/^\d+\.\d+\.\d+$/.test(base) || (previous && !/^\d+\.\d+\.\d+$/.test(previous)))
     throw new Error("Publication requires plain semantic versions");
@@ -31,7 +34,7 @@ export async function releaseVersions(output: string, registry: Registry, previo
       for (const manifest of ["plugin.json", ".codex-plugin/plugin.json", ".claude-plugin/plugin.json"]) {
         if (!files.includes(manifest)) continue;
         const filename = path.join(directory, manifest);
-        const value = JSON.parse(await readFile(filename, "utf8"));
+        const value = jsonRecord.parse(JSON.parse(await readFile(filename, "utf8")));
         await writeFile(filename, JSON.stringify({ ...value, version }, undefined, 2) + "\n");
       }
       state[key] = { hash, version };

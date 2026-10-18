@@ -3,20 +3,21 @@ import path from "node:path";
 import { readImports, saveImports, validateMarkers, writeMarker } from "./import-config.ts";
 import { readFile, writeFile } from "./io.ts";
 import { buildMarketplace } from "./build-marketplace.ts";
-import type { ExternalImport, Registry } from "./types.ts";
+import type { ExternalImport } from "./types.ts";
+import { parseRegistry } from "./validation.ts";
+import * as z from "zod/mini";
 
 const root = await realpath(process.cwd());
 const [command, ...args] = process.argv.slice(2);
 const entries = await readImports(root);
 await validateMarkers(root, entries);
-const registry = Bun.TOML.parse(await readFile(path.join(root, "marketplace.toml"), "utf8")) as unknown as Registry;
-const saveRegistry = () =>
-  writeFile(
-    path.join(root, "marketplace.toml"),
-    Bun.TOML.stringify(registry as unknown as Parameters<typeof Bun.TOML.stringify>[0])
-  );
+const registry = parseRegistry(Bun.TOML.parse(await readFile(path.join(root, "marketplace.toml"), "utf8")));
+const saveRegistry = async () => {
+  const contents = Bun.TOML.stringify(registry);
+  await writeFile(path.join(root, "marketplace.toml"), contents);
+};
 if (command === "check" && args.length === 0) {
-  console.log(`Validated ${entries.length} imports and markers.`);
+  console.log(`Validated ${String(entries.length)} imports and markers.`);
 } else if (command === "sync" && args.length === 0) {
   await buildMarketplace({
     root,
@@ -49,7 +50,7 @@ if (command === "check" && args.length === 0) {
     options.set(flags[i], flags[i + 1]);
   }
   const entry: ExternalImport = {
-    kind: kind as ExternalImport["kind"],
+    kind: z.enum(["skill", "plugin"]).parse(kind),
     name,
     repository,
     path: source,
@@ -69,7 +70,7 @@ if (command === "check" && args.length === 0) {
         await lstat(path.join(root, target));
         throw new Error(`Destination exists: ${target}`);
       } catch (error) {
-        if (error.code !== "ENOENT") throw error;
+        if (!(error instanceof Error && "code" in error && error.code === "ENOENT")) throw error;
       }
     }
     const pluginName = destination.split("/")[1];
@@ -84,7 +85,7 @@ if (command === "check" && args.length === 0) {
         version: "1.0.0",
         description: `Imported ${pluginName} plugin.`,
         category: "Development",
-        harnesses: harness === "both" ? ["claude", "codex"] : [harness as "claude" | "codex"],
+        harnesses: harness === "both" ? ["claude", "codex"] : [z.enum(["claude", "codex"]).parse(harness)],
         native: true,
       });
       await saveRegistry();

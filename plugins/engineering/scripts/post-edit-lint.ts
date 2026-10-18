@@ -1,9 +1,10 @@
-import { existsSync } from "node:fs";
 import { access } from "node:fs/promises";
-import { createRequire } from "node:module";
 import path from "node:path";
-import { pathToFileURL } from "node:url";
-import { configPath, dependencyRoot } from "./post-edit-deps.ts";
+import { ESLint } from "eslint";
+import * as ts from "typescript";
+import * as z from "zod/mini";
+import * as sharedConfig from "../eslint.config.ts";
+export { default as PRETTIER_DEFAULTS } from "../prettier.config.mjs";
 
 export const TYPESCRIPT = /\.(?:[cm]?ts|tsx)$/i;
 export const FLAT_ESLINT_CONFIG = [
@@ -22,12 +23,6 @@ export const LEGACY_ESLINT_CONFIG = [
   ".eslintrc.yaml",
   ".eslintrc.yml",
 ];
-const packagedPrettier = new URL("../prettier.config.mjs", import.meta.url);
-const sourcePrettier = new URL("../../../prettier.config.mjs", import.meta.url);
-const prettierModule = await import(
-  (existsSync(packagedPrettier) ? packagedPrettier : sourcePrettier).href
-);
-export const PRETTIER_DEFAULTS = prettierModule.default;
 export interface Finding {
   ruleId?: string | null;
   severity: number;
@@ -57,30 +52,18 @@ export async function nearest(start: string, names: string[], limit: string) {
   return undefined;
 }
 
-export async function loadModule(name: string, directory: string) {
-  const require = createRequire(path.join(directory, "package.json"));
-  return import(pathToFileURL(require.resolve(name)).href);
-}
-
-async function sharedConfig() {
-  return import(pathToFileURL(configPath(await dependencyRoot())).href);
-}
-
 async function fallbackConfig(
   file: string,
   root: string,
   forceUntyped = false
 ) {
-  const shared = await sharedConfig();
   const tsconfig = await nearest(path.dirname(file), ["tsconfig.json"], root);
   let typed = Boolean(!forceUntyped && tsconfig && TYPESCRIPT.test(file));
   let typedSkipReason: string | undefined;
   if (typed) {
     try {
       if (!tsconfig) throw new Error("missing tsconfig");
-      const tsModule = await loadModule("typescript", await dependencyRoot());
-      const ts = tsModule.default;
-      const document = ts.readConfigFile(tsconfig, ts.sys.readFile);
+      const document = ts.readConfigFile(tsconfig, (filename) => ts.sys.readFile(filename));
       if (document.error) throw new Error("invalid tsconfig");
       const parsed = ts.parseJsonConfigFileContent(
         document.config,
@@ -102,10 +85,10 @@ async function fallbackConfig(
     }
   }
   return {
-    config: shared.createConfig({ typed, tsconfigRootDir: tsconfig ? path.dirname(tsconfig) : root, hook: true }),
+    config: sharedConfig.createConfig({ typed, tsconfigRootDir: tsconfig ? path.dirname(tsconfig) : root, hook: true }),
     typed,
     typedSkipReason,
-    integrated: shared.formattingIntegrated,
+    integrated: sharedConfig.formattingIntegrated,
   };
 }
 
@@ -123,10 +106,11 @@ export async function formattingIntegrated(
     }
   }
   try {
-    const eslintModule = await loadModule("eslint", root);
-    const engine = new eslintModule.ESLint({ cwd: path.dirname(configPath) });
-    const config = await engine.calculateConfigForFile(file);
-    const rule = config?.rules?.["prettier/prettier"];
+    const engine = new ESLint({ cwd: path.dirname(configPath) });
+    const config = z.object({ rules: z.optional(z.record(z.string(), z.unknown())) }).parse(
+      await engine.calculateConfigForFile(file)
+    );
+    const rule = config.rules?.["prettier/prettier"];
     return (
       rule !== undefined &&
       rule !== 0 &&
@@ -145,12 +129,6 @@ export async function lint(
   configPath: string | undefined
 ) {
   const fallback = configPath ? undefined : await fallbackConfig(file, root);
-  const eslintModule = fallback
-    ? await loadModule("eslint", await dependencyRoot())
-    : await loadModule("eslint", root).catch(async () =>
-        loadModule("eslint", await dependencyRoot())
-      );
-  const ESLint = eslintModule.ESLint;
   const options: Record<string, unknown> = {
     cwd: configPath ? path.dirname(configPath) : root,
     fix: true,
@@ -170,7 +148,7 @@ export async function lint(
   let typedSkipped = false;
   if (
     fallback?.typed &&
-    result?.messages?.some(
+    result.messages.some(
       (item: Finding) =>
         item.fatal && /project service|tsconfig/i.test(item.message)
     )
@@ -187,8 +165,8 @@ export async function lint(
   }
   return {
     ignored: false,
-    output: result?.output,
-    findings: result?.messages ?? [],
+    output: result.output,
+    findings: result.messages,
     typedSkipped,
     typedSkipReason: fallback?.typedSkipReason,
   };

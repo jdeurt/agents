@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { mkdtemp, mkdir, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
+import * as z from "zod/mini";
 import { applyImportPolicy } from "./import-policy.ts";
 import { readFile, writeFile } from "./io.ts";
 import type { ExternalImport } from "./types.ts";
@@ -46,10 +47,14 @@ test("import policy removes unapproved code and executable integrations and expl
     assert.equal(await Bun.file(path.join(directory, "scripts/allowed.ts")).exists(), true);
     assert.equal(await Bun.file(path.join(directory, "scripts/omitted.py")).exists(), false);
     assert.match(await readFile(path.join(directory, "SKILL.md"), "utf8"), /Do not download, install, recreate/);
-    const manifest = JSON.parse(await readFile(path.join(directory, ".codex-plugin/plugin.json"), "utf8"));
+    const manifest = z
+      .looseObject({ hooks: z.optional(z.unknown()), mcpServers: z.optional(z.unknown()) })
+      .parse(JSON.parse(await readFile(path.join(directory, ".codex-plugin/plugin.json"), "utf8")));
     assert.equal(manifest.hooks, undefined);
     assert.equal(manifest.mcpServers, undefined);
-    const mcp = JSON.parse(await readFile(path.join(directory, ".mcp.json"), "utf8"));
+    const mcp = z
+      .looseObject({ local: z.optional(z.unknown()), remote: z.object({ url: z.string() }) })
+      .parse(JSON.parse(await readFile(path.join(directory, ".mcp.json"), "utf8")));
     assert.equal(mcp.local, undefined);
     assert.equal(mcp.remote.url, "https://example.com/mcp");
     await writeFile(path.join(directory, "scripts/omitted.py"), "print('opt in')\n");

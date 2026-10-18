@@ -1,29 +1,31 @@
 import { lstat, readdir, realpath, rmdir, stat } from "node:fs/promises";
 import path from "node:path";
+import type { Dirent } from "node:fs";
+import type { Registry } from "./types.ts";
 const HARNESSES = new Set(["claude", "codex"]);
 const NAME = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 const VERSION = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/;
 const SOURCE_EXCLUSIONS: string[] = [];
-export function marketplaceSourceFilter(pluginsRoot) {
-  const excluded = (filename) => {
+export function marketplaceSourceFilter(pluginsRoot: string) {
+  const excluded = (filename: string) => {
     const relative = path.relative(pluginsRoot, filename).split(path.sep).join("/");
     return SOURCE_EXCLUSIONS.some((directory) => relative === directory || relative.startsWith(`${directory}/`));
   };
-  return async (filename) => !excluded(filename) && !excluded(await realpath(filename));
+  return async (filename: string) => !excluded(filename) && !excluded(await realpath(filename));
 }
 
-function requireText(value, label) {
+function requireText(value: unknown, label: string) {
   if (typeof value !== "string" || !value.trim()) throw new Error(`${label} must be a non-empty string`);
 }
 
-function fields(value, allowed, label) {
+function fields(value: unknown, allowed: string[], label: string): asserts value is Record<string, unknown> {
   if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error(`${label} must be a table`);
   for (const key of Object.keys(value)) {
     if (!allowed.includes(key)) throw new Error(`${label}: unknown field ${key}`);
   }
 }
 
-export function inside(root, relative) {
+export function inside(root: string, relative: string) {
   if (typeof relative !== "string" || path.isAbsolute(relative) || relative.split(/[\\/]/).includes("..")) {
     throw new Error(`Unsafe generated path: ${relative}`);
   }
@@ -34,13 +36,13 @@ export function inside(root, relative) {
 }
 
 export async function filesIn(
-  directory,
+  directory: string,
   prefix = "",
-  linksWithin = undefined,
-  parents = new Set(),
-  filter = undefined
-) {
-  let entries;
+  linksWithin?: string,
+  parents = new Set<string>(),
+  filter?: (filename: string) => Promise<boolean>
+): Promise<string[]> {
+  let entries: Dirent[];
   try {
     const resolvedValue1 = await lstat(directory);
     if (resolvedValue1.isSymbolicLink() && !linksWithin)
@@ -53,15 +55,15 @@ export async function filesIn(
     parents = new Set([...parents, resolved]);
     entries = await readdir(directory, { withFileTypes: true });
   } catch (error) {
-    if (error.code === "ENOENT") return [];
+    if (error instanceof Error && "code" in error && error.code === "ENOENT") return [];
     throw error;
   }
-  const files = [];
+  const files: string[] = [];
   for (const entry of entries.sort((a, b) => a.name.localeCompare(b.name))) {
     const relative = path.posix.join(prefix, entry.name);
     const filename = path.join(directory, entry.name);
     if (filter && !(await filter(filename))) continue;
-    let info = entry;
+    let info: Pick<typeof entry, "isDirectory" | "isFile"> = entry;
     if (entry.isSymbolicLink()) {
       if (!linksWithin) throw new Error(`Symbolic links are not supported: ${filename}`);
       const resolved = await realpath(filename);
@@ -75,25 +77,25 @@ export async function filesIn(
   return files;
 }
 
-export async function checkOutputParents(root, relative) {
+export async function checkOutputParents(root: string, relative: string) {
   let directory = path.dirname(inside(root, relative));
   while (directory !== root) {
     try {
       const resolvedValue2 = await lstat(directory);
       if (resolvedValue2.isSymbolicLink()) throw new Error(`Symbolic links are not supported: ${directory}`);
     } catch (error) {
-      if (error.code !== "ENOENT") throw error;
+      if (!(error instanceof Error && "code" in error && error.code === "ENOENT")) throw error;
     }
     directory = path.dirname(directory);
   }
 }
 
-export async function pruneEmptyDirectories(directory) {
-  let entries;
+export async function pruneEmptyDirectories(directory: string): Promise<void> {
+  let entries: Dirent[];
   try {
     entries = await readdir(directory, { withFileTypes: true });
   } catch (error) {
-    if (error.code === "ENOENT") return;
+    if (error instanceof Error && "code" in error && error.code === "ENOENT") return;
     throw error;
   }
   for (const entry of entries) {
@@ -105,7 +107,7 @@ export async function pruneEmptyDirectories(directory) {
   if (resolvedValue3.length === 0) await rmdir(directory);
 }
 
-export function validateRegistry(registry) {
+export function validateRegistry(registry: Registry) {
   fields(registry, ["marketplace", "plugins"], "registry");
   fields(registry.marketplace, ["name", "display_name", "owner", "description"], "marketplace");
   const marketplace = registry.marketplace;

@@ -3,6 +3,8 @@ import { readFileSync } from "node:fs";
 import { access, readFile, realpath, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import * as prettier from "prettier";
+import * as z from "zod/mini";
 import {
   FLAT_ESLINT_CONFIG,
   LEGACY_ESLINT_CONFIG,
@@ -10,23 +12,32 @@ import {
   TYPESCRIPT,
   formattingIntegrated,
   lint,
-  loadModule,
   nearest,
-  type Finding,
 } from "./post-edit-lint.ts";
-import { dependencyRoot } from "./post-edit-deps.ts";
 
 const SOURCE = /\.(?:[cm]?[jt]s|jsx|tsx)$/i;
 const REACT = /\.(?:jsx|tsx)$/i;
 const SKIP =
   /(^|\/)(?:node_modules|dist|build|coverage|\.next|\.output|\.git|generated)(\/|$)/;
 
-interface Event {
-  cwd?: string;
-  tool_name?: string;
-  tool_input?: Record<string, unknown>;
-  tool_response?: Record<string, unknown>;
-}
+const eventSchema = z.object({
+  cwd: z.optional(z.string()),
+  tool_name: z.optional(z.string()),
+  tool_input: z.optional(z.record(z.string(), z.unknown())),
+  tool_response: z.optional(z.record(z.string(), z.unknown())),
+});
+type Event = z.infer<typeof eventSchema>;
+const doctorReport = z.object({
+  ok: z.optional(z.boolean()),
+  error: z.optional(z.unknown()),
+  projects: z.optional(
+    z.array(z.object({
+      skippedChecks: z.optional(z.array(z.string())),
+      skippedCheckReasons: z.optional(z.record(z.string(), z.string())),
+    }))
+  ),
+  diagnostics: z.optional(z.array(z.unknown())),
+});
 const exists = async (name: string) => {
   try {
     await access(name);
@@ -44,7 +55,7 @@ export function editedPaths(event: Event): string[] {
   if (typeof input.file_path === "string") paths.push(input.file_path);
   if (typeof input.filePath === "string") paths.push(input.filePath);
   if (Array.isArray(input.edits)) {
-    for (const edit of input.edits) {
+    for (const edit of z.array(z.unknown()).parse(input.edits)) {
       if (edit && typeof edit === "object" && "file_path" in edit)
         paths.push(edit.file_path);
     }
@@ -96,12 +107,12 @@ async function reactDoctor(file: string, root: string, workspace: string) {
   const timer = setTimeout(() => child.kill("SIGKILL"), 9000);
   const code = await new Promise<number | null>((resolve) => {
     child.on("close", resolve);
-    child.on("error", () => resolve(-1));
+    child.on("error", () => { resolve(-1); });
   });
   clearTimeout(timer);
   if (code === null) return "React Doctor timed out.";
   try {
-    const report = JSON.parse(output);
+    const report = doctorReport.parse(JSON.parse(output));
     if (report.ok === false)
       return `React Doctor could not scan: ${String(report.error).slice(0, 160)}`;
     const skipped = Array.isArray(report.projects)
@@ -121,7 +132,7 @@ async function reactDoctor(file: string, root: string, workspace: string) {
       .slice(0, 3)
       .map((item: unknown) => JSON.stringify(item).slice(0, 180))
       .join("; ");
-    return `React Doctor: ${diagnostics.length} finding(s): ${examples}`;
+    return `React Doctor: ${String(diagnostics.length)} finding(s): ${examples}`;
   } catch {
     return "React Doctor could not produce a JSON report.";
   }
@@ -155,9 +166,6 @@ export async function run(event: Event): Promise<string> {
     const notes: string[] = [];
     try {
       if (!(await formattingIntegrated(file, root, configPath)) || legacyConfig) {
-        const prettier = await loadModule("prettier", root).catch(async () =>
-          loadModule("prettier", await dependencyRoot())
-        );
         const ignore = await nearest(
           path.dirname(file),
           [".prettierignore"],
@@ -191,14 +199,14 @@ export async function run(event: Event): Promise<string> {
         !(await nearest(path.dirname(file), ["tsconfig.json"], cwd))
       )
         notes.push("Type-aware rules skipped: no project tsconfig.");
-      const findings = result.findings as Finding[];
+      const findings = result.findings;
       for (const item of findings.slice(0, 4)) {
         notes.push(
-          `${item.severity === 2 ? "error" : "warning"}:${item.line ?? 0} ${item.ruleId ?? "parser"}: ${item.message.replaceAll("\n", " ").slice(0, 140)}`
+          `${item.severity === 2 ? "error" : "warning"}:${String(item.line ?? 0)} ${item.ruleId ?? "parser"}: ${item.message.replaceAll("\n", " ").slice(0, 140)}`
         );
       }
       if (findings.length > 4)
-        notes.push(`... ${findings.length - 4} more findings`);
+        notes.push(`... ${String(findings.length - 4)} more findings`);
     } catch (error) {
       notes.push(
         `ESLint unavailable or crashed: ${String(error).slice(0, 220)}`
@@ -226,7 +234,7 @@ if (
 ) {
   try {
     const input = readFileSync(0, "utf8").slice(0, 256_000);
-    const event = JSON.parse(input) as Event;
+    const event = eventSchema.parse(JSON.parse(input));
     const result = await run(event);
     if (result) console.log(result);
   } catch (error) {

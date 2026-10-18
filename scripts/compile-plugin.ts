@@ -6,9 +6,15 @@ import type { HarnessOutput } from "soubi/compiler";
 
 import { parseSkillFrontmatter, validateSkillFrontmatter } from "./file-validation.ts";
 import { inside, marketplaceSourceFilter, filesIn } from "./build-files.ts";
-import type { Plugin } from "./types.ts";
+import type { BuiltFile, Plugin } from "./types.ts";
+import * as z from "zod/mini";
+import { parseJsonRecord, jsonRecord } from "./validation.ts";
 const json = (value: unknown) => `${JSON.stringify(value, undefined, 2)}\n`;
-async function applyInvocationPolicies(output: HarnessOutput, harness, skills) {
+function applyInvocationPolicies(
+  output: HarnessOutput,
+  harness: "claude" | "codex",
+  skills: Map<string, Awaited<ReturnType<typeof validateSkillFrontmatter>>>
+) {
   const files = new Map(output.files.map((file) => [file.path, file]));
   for (const [name, metadata] of skills) {
     const explicit = metadata.metadata?.invocation === "explicit";
@@ -17,7 +23,7 @@ async function applyInvocationPolicies(output: HarnessOutput, harness, skills) {
     const skill = files.get(skillPath);
     if (!skill) throw new Error(`${harness}: missing skill ${name}`);
     const source = Buffer.from(skill.contents).toString();
-    const { header, document } = await parseSkillFrontmatter(source);
+    const { header, document } = parseSkillFrontmatter(source);
     // Soubi 0.0.1 flattens nested YAML metadata; retain the validated source fields.
     for (const key of Object.keys(metadata.metadata ?? {})) {
       if (!Object.hasOwn(metadata, key)) Reflect.deleteProperty(document, key);
@@ -39,14 +45,13 @@ async function applyInvocationPolicies(output: HarnessOutput, harness, skills) {
       const document = existing ? Bun.YAML.parse(Buffer.from(existing.contents).toString()) : {};
       if (!document || typeof document !== "object" || Array.isArray(document))
         throw new Error(`${configPath}: configuration must be a YAML mapping`);
-      const config = document as Record<string, unknown>;
-      const policy = config.policy;
+      const policy: unknown = Reflect.get(document, "policy");
       if (policy !== undefined && (!policy || typeof policy !== "object" || Array.isArray(policy)))
         throw new Error(`${configPath}: policy must be a YAML mapping`);
-      config.policy = {
-        ...(policy as Record<string, unknown>),
+      Reflect.set(document, "policy", {
+        ...(policy && typeof policy === "object" && !Array.isArray(policy) ? policy : {}),
         allow_implicit_invocation: false,
-      };
+      });
       files.set(configPath, {
         ...existing,
         path: configPath,
@@ -66,7 +71,7 @@ export async function compilePlugin(root: string, plugin: Plugin, owner: string,
   const filter = marketplaceSourceFilter(pluginsRoot);
   const sourceFiles = await filesIn(source, "", pluginsRoot, new Set(), filter);
   if (plugin.native) {
-    const files = new Map();
+    const files = new Map<string, BuiltFile>();
     for (const harness of plugin.harnesses) {
       const manifestPath = `.${harness}-plugin/plugin.json`;
       const portable = harness === "codex" && sourceFiles.includes("plugin.json");
@@ -92,7 +97,7 @@ export async function compilePlugin(root: string, plugin: Plugin, owner: string,
     return files;
   }
 
-  const skills = new Map();
+  const skills = new Map<string, Awaited<ReturnType<typeof validateSkillFrontmatter>>>();
   for (const file of sourceFiles.filter((file) => path.basename(file) === "SKILL.md")) {
     const metadata = await validateSkillFrontmatter(path.join(source, file));
     skills.set(metadata.name, metadata);
@@ -144,7 +149,7 @@ export async function compilePlugin(root: string, plugin: Plugin, owner: string,
         issues.map((issue) => `${issue.harness}: ${issue.message}`).join("\n")
     );
   }
-  const files = new Map();
+  const files = new Map<string, BuiltFile>();
   for (const harness of plugin.harnesses) {
     const output = result.outputs.find((item) => item.harness === harness);
     if (!output) throw new Error(`${plugin.name}: missing ${harness} output`);
@@ -152,14 +157,14 @@ export async function compilePlugin(root: string, plugin: Plugin, owner: string,
     const manifestPath = `.${harness}-plugin/plugin.json`;
     if (!output.files.some((file) => file.path === manifestPath))
       throw new Error(`${plugin.name}: missing ${harness} manifest`);
-    for (const file of await applyInvocationPolicies(output, harness, skills)) {
+    for (const file of applyInvocationPolicies(output, harness, skills)) {
       // Soubi 0.0.1 emits obsolete manual-install advice for Codex plugin hooks.
       // Current local Codex loads bundled hooks after the user trusts the plugin.
       if (plugin.name === "engineering" && harness === "codex" && file.path === "hooks/README.md") continue;
       inside(root, file.path);
       let contents = Buffer.from(file.contents);
       if (file.path === manifestPath) {
-        const manifest = JSON.parse(contents.toString());
+        const manifest = parseJsonRecord(contents.toString());
         contents = Buffer.from(
           json({
             ...manifest,
@@ -170,7 +175,7 @@ export async function compilePlugin(root: string, plugin: Plugin, owner: string,
         );
       }
       if (harness === "codex" && file.path === ".mcp.json") {
-        const servers = JSON.parse(contents.toString());
+        const servers = z.record(z.string(), jsonRecord).parse(JSON.parse(contents.toString()));
         // Soubi 0.0.1 drops cwd for Codex; native plugins resolve it against their installed root.
         for (const [name, server] of Object.entries(plugin.soubi?.mcpServers ?? {})) {
           if ("command" in server && server.command && server.cwd)

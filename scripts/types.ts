@@ -37,3 +37,7 @@ export interface Registry {
   };
   plugins: Plugin[];
 }
+export interface BuiltFile {
+  contents: Buffer;
+  mode: number;
+}

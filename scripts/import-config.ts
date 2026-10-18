@@ -3,12 +3,16 @@ import path from "node:path";
 import { readFile, writeFile } from "./io.ts";
 import { inside } from "./sync-imports.ts";
 import type { ExternalImport } from "./types.ts";
+import * as z from "zod/mini";
+import { externalImport } from "./validation.ts";
 
 export async function readImports(root: string): Promise<ExternalImport[]> {
-  const config = Bun.TOML.parse(await readFile(path.join(root, "imports.toml"), "utf8")) as { imports?: unknown };
+  const config = z
+    .record(z.string(), z.unknown())
+    .parse(Bun.TOML.parse(await readFile(path.join(root, "imports.toml"), "utf8")));
   if (Object.keys(config).some((key) => key !== "imports") || !Array.isArray(config.imports))
     throw new Error("imports.toml must contain an imports array");
-  const entries = config.imports as unknown as ExternalImport[];
+  const entries = z.array(externalImport).parse(config.imports);
   const names = new Set();
   const destinations: string[] = [];
   for (const entry of entries) {
@@ -47,10 +51,11 @@ export async function readImports(root: string): Promise<ExternalImport[]> {
       throw new Error("Imports require a GitHub HTTPS repository");
     if (entry.ref !== undefined && (typeof entry.ref !== "string" || !entry.ref || entry.ref.startsWith("-")))
       throw new Error("Invalid import ref");
+    const kind: unknown = entry.kind;
     const pattern =
-      entry.kind === "skill"
+      kind === "skill"
         ? /^plugins\/[a-z0-9-]+\/skills\/[a-z0-9-]+$/
-        : entry.kind === "plugin"
+        : kind === "plugin"
           ? /^plugins\/[a-z0-9-]+$/
           : undefined;
     if (!pattern?.test(entry.destination)) throw new Error("Invalid import kind or destination");
@@ -84,7 +89,7 @@ export async function validateMarkers(root: string, entries: ExternalImport[]) {
       await lstat(target);
       throw new Error(`Import destination must be absent on main: ${entry.destination}`);
     } catch (error) {
-      if (error.code !== "ENOENT") throw error;
+      if (!(error instanceof Error && "code" in error && error.code === "ENOENT")) throw error;
     }
   }
   const declared = new Set(entries.map((entry) => entry.destination + ".import"));

@@ -7,7 +7,7 @@ export function git(cwd: string, args: string[]): string {
     stderr: "pipe",
   });
   if (result.exitCode !== 0) {
-    throw Object.assign(new Error(result.stderr.toString().trim() || `git exited ${result.exitCode}`), {
+    throw Object.assign(new Error(result.stderr.toString().trim() || `git exited ${String(result.exitCode)}`), {
       code: result.exitCode,
     });
   }

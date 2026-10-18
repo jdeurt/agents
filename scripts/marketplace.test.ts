@@ -8,6 +8,7 @@ import path from "node:path";
 import { validateSkillFrontmatter } from "./file-validation.ts";
 import { buildMarketplace } from "./build-marketplace.ts";
 import { digest, inside, syncImports } from "./sync-imports.ts";
+import * as z from "zod/mini";
 
 test(
   "packages both harnesses, retains portable skills and imports, and detects tampering",
@@ -17,13 +18,21 @@ test(
       try {
         await syncImports({ check: true });
         await buildMarketplace({ output });
-        const json = async (p) => JSON.parse(await readFile(path.join(output, p), "utf8"));
+        const json = async <T>(name: string, schema: z.ZodMiniType<T>): Promise<T> =>
+          schema.parse(JSON.parse(await readFile(path.join(output, name), "utf8")));
         for await (const file of new Bun.Glob("dist/*/plugins/*/skills/*/SKILL.md").scan(output)) {
           await validateSkillFrontmatter(path.join(output, file), {
-            harness: file.split("/")[1] as "claude" | "codex",
+            harness: z.enum(["claude", "codex"]).parse(file.split("/")[1]),
           });
         }
-        const codex = await json(".agents/plugins/marketplace.json");
+        const codex = await json(
+          ".agents/plugins/marketplace.json",
+          z.object({
+            plugins: z.array(
+              z.object({ name: z.string(), source: z.object({ source: z.string(), path: z.string() }) })
+            ),
+          })
+        );
         assert.deepEqual(
           codex.plugins.map((p) => p.name),
           ["jdeurt-design", "jdeurt-engineering", "jdeurt-writing", "jdeurt-meta", "jdeurt-cloudflare"]
@@ -31,7 +40,10 @@ test(
         assert.ok(
           codex.plugins.every((p) => p.source.source === "local" && p.source.path.startsWith("./dist/codex/plugins/"))
         );
-        const resolvedValue1 = await json(".claude-plugin/marketplace.json");
+        const resolvedValue1 = await json(
+          ".claude-plugin/marketplace.json",
+          z.object({ plugins: z.array(z.object({ name: z.string() })) })
+        );
         assert.deepEqual(
           resolvedValue1.plugins.map((p) => p.name),
           ["jdeurt-design", "jdeurt-engineering", "jdeurt-writing", "jdeurt-meta", "jdeurt-cloudflare"]
@@ -40,18 +52,30 @@ test(
           path.join(output, "dist/codex/plugins/writing/skills/writing-clearly-and-concisely/elements-of-style.md")
         );
         await readFile(path.join(output, "dist/claude/plugins/writing/skills/writing-clearly-and-concisely/SKILL.md"));
-        const resolvedValue4 = await json("dist/codex/plugins/design/.mcp.json");
+        const resolvedValue4 = await json(
+          "dist/codex/plugins/design/.mcp.json",
+          z.object({ mobbin: z.object({ url: z.string() }) })
+        );
         assert.equal(resolvedValue4.mobbin.url, "https://api.mobbin.com/mcp");
-        const engineering = await json("dist/codex/plugins/engineering/.codex-plugin/plugin.json");
+        const engineering = await json(
+          "dist/codex/plugins/engineering/.codex-plugin/plugin.json",
+          z.object({ mcpServers: z.string() })
+        );
         assert.equal(engineering.mcpServers, "./.mcp.json");
         for (const name of ["eslint.config.ts", "prettier.config.mjs"]) {
           const source = await readFile(path.join(process.cwd(), name), "utf8");
           for (const host of ["codex", "claude"])
             assert.equal(await readFile(path.join(output, `dist/${host}/plugins/engineering/${name}`), "utf8"), source);
         }
-        const bunMcp = await json("dist/codex/plugins/engineering/.mcp.json");
+        const bunMcp = await json(
+          "dist/codex/plugins/engineering/.mcp.json",
+          z.object({ bun: z.object({ url: z.string() }) })
+        );
         assert.equal(bunMcp.bun.url, "https://bun.com/docs/mcp");
-        const claudeMcp = await json("dist/claude/plugins/engineering/.mcp.json");
+        const claudeMcp = await json(
+          "dist/claude/plugins/engineering/.mcp.json",
+          z.object({ mcpServers: z.object({ bun: z.object({ url: z.string() }) }) })
+        );
         assert.equal(claudeMcp.mcpServers.bun.url, "https://bun.com/docs/mcp");
         const skill = "dist/codex/plugins/design/skills/shadcn/SKILL.md";
         assert.doesNotMatch(await readFile(path.join(output, skill), "utf8"), /^allowed-tools:/m);

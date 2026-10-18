@@ -8,6 +8,7 @@ import { PRETTIER_DEFAULTS } from "../plugins/engineering/scripts/post-edit-lint
 import { createConfig } from "../eslint.config.ts";
 import reactHooks from "eslint-plugin-react-hooks";
 import reactDoctor from "eslint-plugin-react-doctor";
+import * as z from "zod/mini";
 
 const roots: string[] = [];
 const deps = path.resolve("node_modules");
@@ -33,20 +34,14 @@ test("JavaScript formatting needs no repository-only TOML plugin", async () => {
 });
 
 test("React Hooks uses its installed modern flat preset", () => {
-  const config = createConfig({ hook: true }) as {
-    plugins?: Record<string, unknown>;
-    rules?: Record<string, unknown>;
-  }[];
+  const config = createConfig({ hook: true });
   const entry = config.find((item) => item.plugins?.["react-hooks"]);
   expect(entry?.rules).toBe(reactHooks.configs.flat["recommended-latest"].rules);
   expect(entry?.rules?.["react-hooks/unsupported-syntax"]).toBeDefined();
 });
 
 test("React Doctor uses its installed recommended preset", () => {
-  const config = createConfig({ hook: true }) as {
-    plugins?: Record<string, unknown>;
-    rules?: Record<string, unknown>;
-  }[];
+  const config = createConfig({ hook: true });
   const entry = config.find((item) => item.plugins?.["react-doctor"]);
   expect(entry?.rules).toBe(reactDoctor.configs.recommended.rules);
 });
@@ -151,17 +146,34 @@ test("fallback respects a tsconfig that disables strict null checks", async () =
   expect(await Bun.file(path.join(root, "sample.js")).exists()).toBe(false);
 });
 
+test("fallback uses type-aware unsafe assertion rule with a suitable tsconfig", async () => {
+  const root = await fixture();
+  const file = path.join(root, "source.ts");
+  await writeFile(
+    path.join(root, "tsconfig.json"),
+    '{"compilerOptions":{"strictNullChecks":true,"noEmit":true},"include":["source.ts"]}'
+  );
+  await writeFile(file, "const input: unknown = {}; const value = input as { name: string }; console.log(value)\n");
+  process.env.JDEURT_EDIT_LINT_ACTIVE = "1";
+  const result = await run(event(root, file));
+  expect(result).toContain("@typescript-eslint/no-unsafe-type-assertion");
+  expect(result).not.toContain("Type-aware rules skipped");
+});
+
 test("missing Bun produces a nonblocking installation request", async () => {
   const module = await import("../plugins/engineering/hooks/post-edit.ts");
   const hook = module.default;
   const command = hook.handler.type === "command" && hook.handler.command;
-  expect(typeof command).toBe("string");
-  const result = spawnSync("/bin/sh", ["-c", command as string], {
+  if (typeof command !== "string") throw new Error("Expected command hook");
+  const result = spawnSync("/bin/sh", ["-c", command], {
     env: { PATH: "/usr/bin:/bin" },
     encoding: "utf8",
   });
   expect(result.status).toBe(0);
-  expect(JSON.parse(result.stdout).hookSpecificOutput.additionalContext).toContain("Please install Bun");
+  const response = z
+    .object({ hookSpecificOutput: z.object({ additionalContext: z.string() }) })
+    .parse(JSON.parse(result.stdout));
+  expect(response.hookSpecificOutput.additionalContext).toContain("Please install Bun");
 });
 
 test("project ESLint and Prettier config take precedence; no TS outputs", async () => {

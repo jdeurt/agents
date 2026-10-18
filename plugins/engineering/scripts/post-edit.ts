@@ -1,12 +1,23 @@
 import { spawn } from "node:child_process";
 import { readFileSync } from "node:fs";
-import { fileURLToPath } from "node:url";
+import path from "node:path";
+import { dependencyRoot } from "./post-edit-deps.ts";
 
 // Keep the host hook successful even if a linter crashes or exceeds its budget.
 const input = readFileSync(0, "utf8");
-const script = fileURLToPath(new URL("post-edit-core.ts", import.meta.url));
+const root = await dependencyRoot().catch((error: unknown) => {
+  console.log(JSON.stringify({
+    hookSpecificOutput: {
+      hookEventName: "PostToolUse",
+      additionalContext: `Edit lint hook setup failed: ${String(error).slice(0, 220)}`,
+    },
+  }));
+  return undefined;
+});
+if (root) {
+const script = path.join(root, "scripts", "post-edit-core.ts");
 const child = spawn("bun", [script], {
-  env: { ...process.env, JDEURT_EDIT_LINT_ACTIVE: "1" },
+  env: { ...process.env, JDEURT_EDIT_LINT_ACTIVE: "1", JDEURT_HOOK_DEPS_ROOT: root },
   stdio: ["pipe", "pipe", "pipe"],
 });
 let output = "";
@@ -35,4 +46,5 @@ if (output.trim()) {
       },
     })
   );
+}
 }

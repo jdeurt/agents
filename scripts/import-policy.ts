@@ -3,8 +3,14 @@ import path from "node:path";
 import { filesIn } from "./build-files.ts";
 import { readFile, writeFile } from "./io.ts";
 import type { ExternalImport } from "./types.ts";
+import * as z from "zod/mini";
 
 const CODE = /\.(?:[cm]?[jt]sx?|sh|bash|zsh|fish|py|rb|pl|php|ps1|bat|cmd|exe|dll|so|dylib|wasm)$/i;
+const surfaceSchema = z.looseObject({
+  extensions: z.optional(z.record(z.string(), z.unknown())),
+  hooks: z.optional(z.unknown()),
+  mcpServers: z.optional(z.unknown()),
+});
 export async function applyImportPolicy(directory: string, entry: ExternalImport) {
   const files = await filesIn(directory);
   const allowed = entry.scripts ?? [];
@@ -40,8 +46,9 @@ export async function applyImportPolicy(directory: string, entry: ExternalImport
     "mcp.json",
   ]) {
     if (!files.includes(file)) continue;
-    const value = JSON.parse(await readFile(path.join(directory, file), "utf8"));
-    const surfaces = [value, value.extensions?.["com.openai"]].filter(Boolean);
+    const value = surfaceSchema.parse(JSON.parse(await readFile(path.join(directory, file), "utf8")));
+    const extension = value.extensions?.["com.openai"];
+    const surfaces = extension === undefined ? [value] : [value, surfaceSchema.parse(extension)];
     for (const surface of surfaces) {
       if (!entry.hooks && surface.hooks !== undefined) {
         delete surface.hooks;
@@ -63,11 +70,11 @@ export async function applyImportPolicy(directory: string, entry: ExternalImport
       }
       const servers = surface.mcpServers ?? (file === ".mcp.json" || file === "mcp.json" ? surface : undefined);
       if (servers && typeof servers === "object" && !entry.local_mcp) {
-        for (const [name, server] of Object.entries(servers)) {
+        for (const [name, server] of Object.entries(z.record(z.string(), z.unknown()).parse(servers))) {
           if (
             server &&
             typeof server === "object" &&
-            ("command" in server || (server as { type?: string }).type === "stdio")
+            ("command" in server || ("type" in server && server.type === "stdio"))
           ) {
             Reflect.deleteProperty(servers, name);
             omitted.push(`${file}: local MCP ${name}`);
