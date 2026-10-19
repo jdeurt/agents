@@ -20,6 +20,18 @@ async function assertImportedJscpdSkills(output: string) {
   }
 }
 
+async function assertCodeReviewSkill(output: string) {
+  for (const host of ["codex", "claude"]) {
+    const base = path.join(output, `dist/${host}/plugins/engineering`);
+    const instructions = await readFile(path.join(base, host === "codex" ? "AGENTS.md" : "CLAUDE.md"), "utf8");
+    const skill = await readFile(path.join(base, "skills/code-review/SKILL.md"), "utf8");
+    assert.match(instructions, /jdeurt-engineering:code-review/);
+    assert.match(skill, /npx -y jscpd@5 .*--semantic/);
+    assert.match(skill, /--cross-formats js-ts/);
+    assert.match(skill, /npx -y jscpd@5 .*--dead-code/);
+  }
+}
+
 test(
   "packages both harnesses, retains portable skills and imports, and detects tampering",
   async () =>
@@ -105,6 +117,8 @@ test(
         assert.equal(claudeMcp.mcpServers.bun.url, "https://bun.com/docs/mcp");
 
         await assertImportedJscpdSkills(output);
+        await assertCodeReviewSkill(output);
+
         const skill = "dist/codex/plugins/design/skills/shadcn/SKILL.md";
         assert.doesNotMatch(await readFile(path.join(output, skill), "utf8"), /^allowed-tools:/m);
         assert.match(
