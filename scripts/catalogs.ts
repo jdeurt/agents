@@ -8,6 +8,7 @@ const json = (value: unknown) => `${JSON.stringify(value, undefined, 2)}\n`;
 export function catalogs(registry: Registry) {
   const expected = new Map<string, BuiltFile>();
   const marketplace = registry.marketplace;
+
   for (const harness of HARNESSES) {
     const plugins = registry.plugins.filter((plugin) => plugin.harnesses.includes(harness));
     const source = (plugin: Plugin) =>
@@ -46,5 +47,6 @@ export function catalogs(registry: Registry) {
       mode: 0o644,
     });
   }
+
   return expected;
 }

@@ -1,13 +1,15 @@
-import { test } from "bun:test";
-import assert from "node:assert/strict";
 import { cp, mkdtemp, realpath, rm } from "node:fs/promises";
-import { tmpdir } from "node:os";
-import path from "node:path";
-import { fileURLToPath } from "node:url";
-import { withImportFixture } from "./import-fixture.ts";
-import { git } from "./git.ts";
 import { readFile, writeFile } from "./io.ts";
+import assert from "node:assert/strict";
 import { buildMarketplace } from "./build-marketplace.ts";
+import { fileURLToPath } from "node:url";
+import { git } from "./git.ts";
+import path from "node:path";
+import { test } from "bun:test";
+
+const INTEGRATION_TIMEOUT_MS = 30_000;
+import { tmpdir } from "node:os";
+import { withImportFixture } from "./import-fixture.ts";
 
 const source = fileURLToPath(new URL("../", import.meta.url));
 test(
@@ -15,11 +17,14 @@ test(
   async () =>
     withImportFixture(async (upstream) => {
       const root = await realpath(await mkdtemp(path.join(tmpdir(), "agents-imports-test-")));
+
       try {
-        for (const item of ["plugins", "eslint.config.ts", "prettier.config.mjs", "marketplace.toml", "imports.toml"])
+        for (const item of ["plugins", "eslint.config.ts", "prettier.config.mjs", "marketplace.toml", "imports.toml"]) {
           await cp(path.join(source, item), path.join(root, item), {
             recursive: true,
           });
+        }
+
         const output = path.join(root, "build");
         const original = await readFile(path.join(root, "imports.toml"), "utf8");
         const pinned = git(upstream, ["rev-parse", "HEAD"]);
@@ -36,7 +41,7 @@ test(
         assert.equal(await Bun.file(path.join(root, "plugins/design/skills/shadcn/SKILL.md")).exists(), false);
         await writeFile(
           path.join(root, "imports.toml"),
-          original.replace('name = "shadcn"', `name = "shadcn"\nref = "${pinned}"`)
+          original.replace('name = "shadcn"', () => `name = "shadcn"\nref = "${pinned}"`)
         );
         await buildMarketplace({ root, output });
         assert.equal(
@@ -90,5 +95,5 @@ test(
         await rm(root, { recursive: true, force: true });
       }
     }),
-  30_000
+  INTEGRATION_TIMEOUT_MS
 );

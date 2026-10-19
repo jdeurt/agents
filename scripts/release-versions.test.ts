@@ -1,14 +1,15 @@
-import { test } from "bun:test";
-import assert from "node:assert/strict";
 import { mkdir, mkdtemp, rm } from "node:fs/promises";
-import path from "node:path";
-import { tmpdir } from "node:os";
-import { releaseVersions, nextVersion } from "./release-versions.ts";
-import { writeFile } from "./io.ts";
+import { nextVersion, releaseVersions } from "./release-versions.ts";
 import type { Registry } from "./types.ts";
+import assert from "node:assert/strict";
+import path from "node:path";
+import { test } from "bun:test";
+import { tmpdir } from "node:os";
+import { writeFile } from "./io.ts";
 
 test("nightly content changes advance versions while identical builds retain them", async () => {
   const output = await mkdtemp(path.join(tmpdir(), "agents-versions-"));
+
   try {
     const directory = path.join(output, "dist/codex/plugins/example");
     await mkdir(path.join(directory, ".codex-plugin"), { recursive: true });

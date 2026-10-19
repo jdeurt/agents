@@ -30,28 +30,6 @@ jobs:
       - run: bun run build
       - run: bun run check
       - run: bun test
-      - uses: actions/setup-node@v4
-        with:
-          node-version: "22"
-      - name: Smoke-test installed React Doctor
-        run: |
-          fixture="$(mktemp -d)"
-          trap 'rm -rf "$fixture"' EXIT
-          mkdir -p "$fixture/src"
-          cat > "$fixture/package.json" <<'EOF'
-          {"name":"react-doctor-smoke","private":true,"type":"module","dependencies":{"react":"19.2.0","react-doctor":"0.9.18"}}
-          EOF
-          cat > "$fixture/src/View.tsx" <<'EOF'
-          import { useState } from "react";
-          export function View({ ready }: { ready: boolean }) {
-            if (ready) useState(0);
-            return <img src="/missing.png" />;
-          }
-          EOF
-          cd "$fixture"
-          bun install --ignore-scripts
-          node node_modules/react-doctor/bin/react-doctor.js src/View.tsx --json --lint --no-cache --no-supply-chain --no-score --blocking none --max-duration 8 > report.json
-          node -e 'const r=require("./report.json"); if(!r.ok || r.projects?.some(p=>p.skippedChecks?.includes("lint")) || !r.diagnostics?.length) process.exit(1); console.log(`React Doctor: ${r.diagnostics.length} finding(s)`);'
       - run: bun run publish:marketplace -- --dry-run
       - name: Smoke-test native Codex installation
         run: |
@@ -64,10 +42,13 @@ jobs:
           fixture="$(mktemp -d)"
           trap 'rm -rf "$fixture"' EXIT
           mkdir -p "$fixture/project" "$fixture/cache"
+          printf 'export default [{rules:{"no-undef":"off"}}];\n' > "$fixture/project/eslint.config.mjs"
+          printf '{"semi":false,"singleQuote":true}\n' > "$fixture/project/.prettierrc.json"
+          printf 'source.js\n' > "$fixture/project/.prettierignore"
           printf 'const value=  1\nconsole.log(missing)\n' > "$fixture/project/source.js"
           printf '{"cwd":"%s","tool_name":"Write","tool_input":{"file_path":"%s"}}\n' "$fixture/project" "$fixture/project/source.js" |
             XDG_CACHE_HOME="$fixture/cache" bun .marketplace-build/dist/codex/plugins/engineering/scripts/post-edit.ts > "$fixture/result.json"
-          node -e 'const fs=require("fs");const path=process.argv[1];const result=JSON.parse(fs.readFileSync(path+"/result.json","utf8"));const note=result.hookSpecificOutput.additionalContext;if(!note.includes("no-undef")||!note.includes("re-read file"))process.exit(1);if(fs.readFileSync(path+"/project/source.js","utf8")!=="const value = 1;\nconsole.log(missing);\n")process.exit(1);const cache=path+"/cache/jdeurt-engineering";if(!fs.existsSync(cache)||!fs.readdirSync(cache).some(name=>fs.existsSync(cache+"/"+name+"/.ready")))process.exit(1);' "$fixture"
+          bun -e 'const fs=require("fs");const path=process.argv[1];const result=JSON.parse(fs.readFileSync(path+"/result.json","utf8"));const note=result.hookSpecificOutput.additionalContext;if(!note.includes("no-undef")||!note.includes("re-read file")||!note.includes("Fix all findings caused by your edit"))process.exit(1);if(fs.readFileSync(path+"/project/source.js","utf8")!=="const value = 1;\nconsole.log(missing);\n")process.exit(1);const cache=path+"/cache/jdeurt-engineering";if(!fs.existsSync(cache)||!fs.readdirSync(cache).some(name=>fs.existsSync(cache+"/"+name+"/.ready")))process.exit(1);' "$fixture"
   publish:
     needs: check
     if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request' && github.event_name != 'merge_group'

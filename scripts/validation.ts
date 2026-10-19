@@ -1,6 +1,6 @@
 import * as z from "zod/mini";
-import { validateRegistry } from "./build-files.ts";
 import type { Registry } from "./types.ts";
+import { validateRegistry } from "./build-files.ts";
 
 export const jsonRecord = z.record(z.string(), z.unknown());
 export const externalImport = z.strictObject({
@@ -69,5 +69,6 @@ const registry = z.strictObject({
 export function parseRegistry(value: unknown): Registry {
   const parsed = registry.parse(value);
   validateRegistry(parsed);
+
   return parsed;
 }

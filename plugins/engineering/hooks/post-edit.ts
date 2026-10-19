@@ -8,7 +8,7 @@ export default defineHook({
   handler: {
     type: "command",
     command:
-      'if command -v bun >/dev/null 2>&1; then bun "${PLUGIN_ROOT}/scripts/post-edit.ts"; else printf \'%s\\n\' \'{"hookSpecificOutput":{"hookEventName":"PostToolUse","additionalContext":"Bun is not installed. Please install Bun to enable the engineering edit hook."}}\'; fi',
-    timeoutMs: 30_000,
+      'if command -v npx >/dev/null 2>&1; then npx -y tsx@4.23.15 "${PLUGIN_ROOT}/scripts/post-edit.ts"; else printf \'%s\\n\' \'{"hookSpecificOutput":{"hookEventName":"PostToolUse","additionalContext":"npx is not installed. Please install Node.js and npm to enable the engineering edit hook."}}\'; fi',
+    timeoutMs: 80_000,
   },
 });
