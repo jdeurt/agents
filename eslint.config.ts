@@ -7,10 +7,10 @@ import reactDoctorLint from "eslint-plugin-react-doctor";
 import prettierRecommended from "eslint-plugin-prettier/recommended";
 import { fileURLToPath } from "node:url";
 import { defineConfig } from "eslint/config";
+import prettierOptions from "./prettier.config.mjs";
 
 // The build copies this source and bundles these pinned dependencies for Engineering.
 const resolutionRoot = fileURLToPath(new URL(".", import.meta.url));
-export const formattingIntegrated = true;
 
 export function createConfig(options: { typed?: boolean; tsconfigRootDir?: string; hook?: boolean } = {}) {
   const files = ["**/*.{ts,tsx,js,jsx,mjs,cjs,mts,cts}"];
@@ -90,6 +90,7 @@ export function createConfig(options: { typed?: boolean; tsconfigRootDir?: strin
     ...(options.typed
       ? [{ files: tsFiles, rules: { "@typescript-eslint/no-unsafe-type-assertion": "error" as const } }]
       : []),
+    { files: ["**/*.{jsx,tsx}"], languageOptions: { parserOptions: { ecmaFeatures: { jsx: true } } } },
     { files: ["**/*.{jsx,tsx}"], plugins: { "react-hooks": { rules: reactHooks.rules } }, rules: reactRules },
     { ...reactDoctorLint.configs.recommended, files: ["**/*.{jsx,tsx}"] },
     ...(options.typed
@@ -103,6 +104,10 @@ export function createConfig(options: { typed?: boolean; tsconfigRootDir?: strin
         ]
       : []),
     prettierRecommended,
+    {
+      files,
+      rules: { "prettier/prettier": ["error", prettierOptions, { usePrettierrc: false }] },
+    },
     {
       files,
       plugins: { "@stylistic": stylistic },

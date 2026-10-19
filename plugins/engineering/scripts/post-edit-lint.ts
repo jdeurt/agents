@@ -2,27 +2,9 @@ import { access } from "node:fs/promises";
 import path from "node:path";
 import { ESLint } from "eslint";
 import * as ts from "typescript";
-import * as z from "zod/mini";
 import * as sharedConfig from "../eslint.config.ts";
-export { default as PRETTIER_DEFAULTS } from "../prettier.config.mjs";
 
 export const TYPESCRIPT = /\.(?:[cm]?ts|tsx)$/i;
-export const FLAT_ESLINT_CONFIG = [
-  "eslint.config.js",
-  "eslint.config.mjs",
-  "eslint.config.cjs",
-  "eslint.config.ts",
-  "eslint.config.mts",
-  "eslint.config.cts",
-];
-export const LEGACY_ESLINT_CONFIG = [
-  ".eslintrc",
-  ".eslintrc.js",
-  ".eslintrc.cjs",
-  ".eslintrc.json",
-  ".eslintrc.yaml",
-  ".eslintrc.yml",
-];
 export interface Finding {
   ruleId?: string | null;
   severity: number;
@@ -56,7 +38,7 @@ export async function nearest(start: string, names: string[], limit: string) {
   return undefined;
 }
 
-async function fallbackConfig(file: string, root: string, forceUntyped = false) {
+async function bundledConfig(file: string, root: string, forceUntyped = false) {
   const tsconfig = await nearest(path.dirname(file), ["tsconfig.json"], root);
   let typed = Boolean(!forceUntyped && tsconfig && TYPESCRIPT.test(file));
   let typedSkipReason: string | undefined;
@@ -87,68 +69,31 @@ async function fallbackConfig(file: string, root: string, forceUntyped = false) 
     config: sharedConfig.createConfig({ typed, tsconfigRootDir: tsconfig ? path.dirname(tsconfig) : root, hook: true }),
     typed,
     typedSkipReason,
-    integrated: sharedConfig.formattingIntegrated,
   };
 }
 
-export async function formattingIntegrated(file: string, root: string, configPath: string | undefined) {
-  if (!configPath) {
-    try {
-      const fallback = await fallbackConfig(file, root);
-
-      return fallback.integrated;
-    } catch {
-      return false;
-    }
-  }
-
-  try {
-    const engine = new ESLint({ cwd: path.dirname(configPath) });
-    const config = z
-      .object({ rules: z.optional(z.record(z.string(), z.unknown())) })
-      .parse(await engine.calculateConfigForFile(file));
-    const rule = config.rules?.["prettier/prettier"];
-
-    return (
-      rule !== undefined &&
-      rule !== 0 &&
-      rule !== "off" &&
-      (!Array.isArray(rule) || (rule[0] !== 0 && rule[0] !== "off"))
-    );
-  } catch {
-    return false;
-  }
-}
-
-export async function lint(file: string, content: string, root: string, configPath: string | undefined) {
-  const fallback = configPath ? undefined : await fallbackConfig(file, root);
-  const options: Record<string, unknown> = {
-    cwd: configPath ? path.dirname(configPath) : root,
+export async function lint(file: string, content: string, root: string) {
+  const bundled = await bundledConfig(file, root);
+  const options = {
+    cwd: root,
     fix: true,
+    overrideConfigFile: true as const,
+    overrideConfig: bundled.config,
   };
-
-  if (fallback) {
-    options.overrideConfigFile = true;
-    options.overrideConfig = fallback.config;
-  }
 
   const engine = new ESLint(options);
 
   if (await engine.isPathIgnored(file)) return { ignored: true, findings: [] as Finding[] };
 
-  const run = async () => {
-    const results = await engine.lintText(content, { filePath: file });
-
-    return results[0];
-  };
-  let result = await run();
+  const results = await engine.lintText(content, { filePath: file });
+  let result = results[0];
   let typedSkipped = false;
 
   if (
-    fallback?.typed &&
+    bundled.typed &&
     result.messages.some((item: Finding) => item.fatal && /project service|tsconfig/i.test(item.message))
   ) {
-    const untyped = await fallbackConfig(file, root, true);
+    const untyped = await bundledConfig(file, root, true);
     // This file is outside its project TS program; keep linting with untyped rules.
     const retry = new ESLint({
       ...options,
@@ -164,6 +109,6 @@ export async function lint(file: string, content: string, root: string, configPa
     output: result.output,
     findings: result.messages,
     typedSkipped,
-    typedSkipReason: fallback?.typedSkipReason,
+    typedSkipReason: bundled.typedSkipReason,
   };
 }

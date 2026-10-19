@@ -1,10 +1,10 @@
 import { afterEach, expect, test } from "bun:test";
 import { spawnSync } from "node:child_process";
-import { chmod, mkdir, mkdtemp, readFile, rm, symlink, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, symlink, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { editedPaths, run } from "../plugins/engineering/scripts/post-edit-core.ts";
-import { PRETTIER_DEFAULTS } from "../plugins/engineering/scripts/post-edit-lint.ts";
+import PRETTIER_DEFAULTS from "../prettier.config.mjs";
 import { createConfig } from "../eslint.config.ts";
 import reactHooks from "eslint-plugin-react-hooks";
 import reactDoctor from "eslint-plugin-react-doctor";
@@ -146,6 +146,7 @@ test("native Codex PostToolUse string response formats and reports findings", as
   expect(result.status).toBe(0);
   expect(result.stdout).toContain("Formatted/fixed; re-read file.");
   expect(result.stdout).toContain("no-undef");
+  expect(result.stdout).toContain("Fix all findings caused by your edit; follow these rules in future edits.");
   expect(result.stdout).toContain("example.js:\nFormatted/fixed; re-read file.\n");
   expect(result.stdout).not.toContain(" | ");
   expect(await readFile(file, "utf8")).toBe("const count = 1;\nconsole.log(count, missing);\n");
@@ -167,7 +168,7 @@ test("formats a touched file, reports lint findings, and is idempotent", async (
   expect(second).not.toContain("Formatted/fixed");
 });
 
-test("project ESLint autofix changes only the edited file and leaves findings nonblocking", async () => {
+test("bundled ESLint autofix changes only the edited file and leaves findings nonblocking", async () => {
   const root = await fixture();
   const file = path.join(root, "fix.js");
   const other = path.join(root, "other.js");
@@ -242,7 +243,7 @@ test("missing Bun produces a nonblocking installation request", async () => {
   expect(response.hookSpecificOutput.additionalContext).toContain("Please install Bun");
 });
 
-test("project ESLint and Prettier config take precedence; no TS outputs", async () => {
+test("bundled ESLint and Prettier policy ignores project configs and emits no TS output", async () => {
   const root = await fixture();
   const file = path.join(root, "source.ts");
   await writeFile(
@@ -250,6 +251,7 @@ test("project ESLint and Prettier config take precedence; no TS outputs", async 
     "export default [{files:['**/*.ts'],rules:{'no-unused-vars':'off'}}];\n"
   );
   await writeFile(path.join(root, ".prettierrc.json"), '{"semi":false,"singleQuote":true}');
+  await writeFile(path.join(root, ".prettierignore"), "source.ts\n");
   await writeFile(
     path.join(root, "tsconfig.json"),
     JSON.stringify({
@@ -261,12 +263,13 @@ test("project ESLint and Prettier config take precedence; no TS outputs", async 
   process.env.JDEURT_EDIT_LINT_ACTIVE = "1";
   const result = await run(event(root, file));
   expect(result).toContain("Formatted/fixed");
-  expect(await readFile(file, "utf8")).toBe("const greeting = 'hello'\n");
+  expect(await readFile(file, "utf8")).toBe('const greeting = "hello";\n');
+  expect(result).toContain("@typescript-eslint/no-unused-vars");
   expect(await Bun.file(path.join(root, "output")).exists()).toBe(false);
   expect(await readFile(path.join(root, "tsconfig.json"), "utf8")).toContain('"strict":false');
 });
 
-test("legacy ESLint config is reported and never run as flat config", async () => {
+test("bundled ESLint policy ignores a legacy project config", async () => {
   const root = await fixture();
   const file = path.join(root, "legacy.js");
   await writeFile(
@@ -276,9 +279,8 @@ test("legacy ESLint config is reported and never run as flat config", async () =
   await writeFile(file, "const value=1\n");
   process.env.JDEURT_EDIT_LINT_ACTIVE = "1";
   const result = await run(event(root, file));
-  expect(result).toContain("Legacy ESLint config unsupported; lint skipped.");
   expect(await readFile(file, "utf8")).toBe("const value = 1;\n");
-  expect(result).not.toContain("no-unused-vars");
+  expect(result).toContain("no-unused-vars");
   expect(result).not.toContain("ESLint unavailable");
 });
 
@@ -297,36 +299,12 @@ test("ignores generated, deleted, symlink-escaped and unsupported files", async 
   expect(await readFile(path.join(outside, "escape.js"), "utf8")).toBe("const x=1");
 });
 
-test("React Doctor is invoked only for React files without a fictional strict flag", async () => {
-  const root = await mkdtemp(path.join(os.tmpdir(), "engineering-react-"));
-  roots.push(root);
-  const modules = path.join(root, "node_modules");
-  await mkdir(path.join(modules, ".bin"), { recursive: true });
-  await symlink(path.join(deps, "prettier"), path.join(modules, "prettier"));
-  const args = path.join(root, "doctor-args");
-  const bin = path.join(modules, ".bin", "react-doctor");
-  await writeFile(
-    bin,
-    `#!/bin/sh\nprintf '%s' "$*" > "${args}"\n` +
-      'printf \'{"diagnostics":[{"message":"missing alt"}],"summary":{"totalDiagnosticCount":1}}\''
-  );
-  await chmod(bin, 0o755);
-  await writeFile(path.join(root, "package.json"), '{"type":"module"}');
-  const file = path.join(root, "View.tsx");
-  await writeFile(file, "export const View=()=> <div/>");
+test("bundled React Doctor ESLint rules report React findings", async () => {
+  const root = await fixture();
+  const file = path.join(root, "View.jsx");
+  await writeFile(file, 'export function View() { return <img src="/photo.png" />; }\n');
   process.env.JDEURT_EDIT_LINT_ACTIVE = "1";
   const report = await run(event(root, file));
-  expect(report).toContain("React Doctor: 1 finding");
-  expect(report).toContain("missing alt");
-  const invoked = await readFile(args, "utf8");
-  expect(invoked).toContain("View.tsx");
-  expect(invoked).toContain("--no-supply-chain");
-  expect(invoked).not.toContain("--strict");
-  await writeFile(
-    bin,
-    '#!/bin/sh\nprintf \'{"ok":true,"projects":[{"skippedChecks":["lint"],' +
-      '"skippedCheckReasons":{"lint":"native binding unavailable"}}],"diagnostics":[]}\''
-  );
-  const skipped = await run(event(root, file));
-  expect(skipped).toContain("React Doctor skipped checks: lint: native binding unavailable");
+  expect(report).toContain("react-doctor/alt-text");
+  expect(report).toContain("Fix all findings caused by your edit");
 });

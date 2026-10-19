@@ -10,5 +10,5 @@
     "strictNullChecks": true,
     "types": ["bun"]
   },
-  "include": ["scripts/**/*.ts", "plugins/engineering/**/*.ts", "eslint.config.ts"]
+  "include": ["scripts/**/*.ts", "plugins/engineering/**/*.ts", "plugins/engineering/**/*.mts", "eslint.config.ts"]
 }
