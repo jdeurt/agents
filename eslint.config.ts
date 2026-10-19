@@ -6,10 +6,22 @@ import reactDoctorLint from "eslint-plugin-react-doctor";
 import prettierRecommended from "eslint-plugin-prettier/recommended";
 import { fileURLToPath } from "node:url";
 import { defineConfig } from "eslint/config";
+import type { Options } from "prettier";
 
 // The build copies this source and bundles these pinned dependencies for Engineering.
 const resolutionRoot = fileURLToPath(new URL(".", import.meta.url));
 export const formattingIntegrated = true;
+export const prettierOptions = {
+  printWidth: 120,
+  tabWidth: 2,
+  useTabs: false,
+  singleQuote: false,
+  trailingComma: "es5",
+  semi: true,
+  bracketSpacing: true,
+  arrowParens: "always",
+  endOfLine: "lf",
+} satisfies Options;
 
 export function createConfig(options: { typed?: boolean; tsconfigRootDir?: string; hook?: boolean } = {}) {
   const files = ["**/*.{ts,tsx,js,jsx,mjs,cjs,mts,cts}"];
@@ -72,6 +84,7 @@ export function createConfig(options: { typed?: boolean; tsconfigRootDir?: strin
         ]
       : []),
     prettierRecommended,
+    { files, rules: { "prettier/prettier": ["error", prettierOptions, { usePrettierrc: false }] } },
   ]);
 }
 

@@ -108,8 +108,7 @@ export async function compilePlugin(root: string, plugin: Plugin, owner: string,
   const project = path.join(staging, plugin.name);
   await cp(source, project, { recursive: true, dereference: true, filter });
   if (plugin.name === "engineering") {
-    for (const name of ["eslint.config.ts", "prettier.config.mjs"])
-      await cp(path.join(root, name), path.join(project, name));
+    await cp(path.join(root, "eslint.config.ts"), path.join(project, "eslint.config.ts"));
   }
   const config = {
     ...plugin.soubi,

@@ -16,7 +16,7 @@ test(
     withImportFixture(async (upstream) => {
       const root = await realpath(await mkdtemp(path.join(tmpdir(), "agents-imports-test-")));
       try {
-        for (const item of ["plugins", "eslint.config.ts", "prettier.config.mjs", "marketplace.toml", "imports.toml"])
+        for (const item of ["plugins", "eslint.config.ts", "marketplace.toml", "imports.toml"])
           await cp(path.join(source, item), path.join(root, item), {
             recursive: true,
           });

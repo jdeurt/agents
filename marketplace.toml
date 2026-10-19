@@ -32,8 +32,7 @@ assets = [
   "scripts/post-edit-deps.ts",
   "hook-deps/package.json",
   "hook-deps/bun.lock",
-  "eslint.config.ts",
-  "prettier.config.mjs"
+  "eslint.config.ts"
 ]
 
 [plugins.soubi.mcpServers.bun]

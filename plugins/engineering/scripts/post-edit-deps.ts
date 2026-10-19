@@ -19,15 +19,11 @@ export async function dependencyRoot() {
   const packagedConfig = new URL("../eslint.config.ts", import.meta.url);
   const sourceConfig = new URL("../../../eslint.config.ts", import.meta.url);
   const config = existsSync(sourceConfig) ? sourceConfig : packagedConfig;
-  const packagedPrettier = new URL("../prettier.config.mjs", import.meta.url);
-  const sourcePrettier = new URL("../../../prettier.config.mjs", import.meta.url);
-  const prettier = existsSync(sourcePrettier) ? sourcePrettier : packagedPrettier;
   const scripts = ["post-edit-core.ts", "post-edit-lint.ts", "post-edit-deps.ts"];
   const hash = createHash("sha256")
     .update(await readFile(manifest))
     .update(await readFile(lock))
-    .update(await readFile(config))
-    .update(await readFile(prettier));
+    .update(await readFile(config));
   for (const name of scripts) hash.update(await readFile(new URL(name, import.meta.url)));
   const key = hash.digest("hex").slice(0, 16);
   const root = path.join(base, "jdeurt-engineering", key);
@@ -43,7 +39,6 @@ export async function dependencyRoot() {
     await cp(manifest, path.join(root, "package.json"));
     await cp(lock, path.join(root, "bun.lock"));
     await cp(config, path.join(root, "eslint.config.ts"));
-    await cp(prettier, path.join(root, "prettier.config.mjs"));
     await mkdir(path.join(root, "scripts"), { recursive: true });
     for (const name of scripts) await cp(new URL(name, import.meta.url), path.join(root, "scripts", name));
     const result = spawnSync(process.execPath, ["install", "--frozen-lockfile", "--ignore-scripts"], {
@@ -53,7 +48,7 @@ export async function dependencyRoot() {
       maxBuffer: 16_000,
     });
     if (result.status !== 0 || !existsSync(path.join(root, "node_modules", "eslint", "package.json"))) {
-      const reason = result.stderr.length > 0 ? result.stderr : result.error?.message ?? "unknown error";
+      const reason = result.stderr.length > 0 ? result.stderr : (result.error?.message ?? "unknown error");
       throw new Error(`Private Bun dependency install failed: ${reason.slice(0, 180)}`);
     }
     await writeFile(path.join(root, ".ready"), "ok\n");

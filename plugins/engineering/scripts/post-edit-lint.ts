@@ -4,7 +4,7 @@ import { ESLint } from "eslint";
 import * as ts from "typescript";
 import * as z from "zod/mini";
 import * as sharedConfig from "../eslint.config.ts";
-export { default as PRETTIER_DEFAULTS } from "../prettier.config.mjs";
+export { prettierOptions as PRETTIER_DEFAULTS } from "../eslint.config.ts";
 
 export const TYPESCRIPT = /\.(?:[cm]?ts|tsx)$/i;
 export const FLAT_ESLINT_CONFIG = [
@@ -43,8 +43,7 @@ export async function nearest(start: string, names: string[], limit: string) {
   let current = start;
   while (current === limit || current.startsWith(`${limit}${path.sep}`)) {
     for (const name of names) {
-      if (await exists(path.join(current, name)))
-        return path.join(current, name);
+      if (await exists(path.join(current, name))) return path.join(current, name);
     }
     if (current === limit) break;
     current = path.dirname(current);
@@ -52,11 +51,7 @@ export async function nearest(start: string, names: string[], limit: string) {
   return undefined;
 }
 
-async function fallbackConfig(
-  file: string,
-  root: string,
-  forceUntyped = false
-) {
+async function fallbackConfig(file: string, root: string, forceUntyped = false) {
   const tsconfig = await nearest(path.dirname(file), ["tsconfig.json"], root);
   let typed = Boolean(!forceUntyped && tsconfig && TYPESCRIPT.test(file));
   let typedSkipReason: string | undefined;
@@ -65,17 +60,9 @@ async function fallbackConfig(
       if (!tsconfig) throw new Error("missing tsconfig");
       const document = ts.readConfigFile(tsconfig, (filename) => ts.sys.readFile(filename));
       if (document.error) throw new Error("invalid tsconfig");
-      const parsed = ts.parseJsonConfigFileContent(
-        document.config,
-        ts.sys,
-        path.dirname(tsconfig)
-      );
+      const parsed = ts.parseJsonConfigFileContent(document.config, ts.sys, path.dirname(tsconfig));
       if (parsed.errors.length > 0) throw new Error("invalid tsconfig");
-      if (!(
-        parsed.options.strictNullChecks ??
-        parsed.options.strict ??
-        false
-      )) {
+      if (!(parsed.options.strictNullChecks ?? parsed.options.strict ?? false)) {
         typed = false;
         typedSkipReason = "project tsconfig does not enable strict null checks";
       }
@@ -92,11 +79,7 @@ async function fallbackConfig(
   };
 }
 
-export async function formattingIntegrated(
-  file: string,
-  root: string,
-  configPath: string | undefined
-) {
+export async function formattingIntegrated(file: string, root: string, configPath: string | undefined) {
   if (!configPath) {
     try {
       const fallback = await fallbackConfig(file, root);
@@ -107,9 +90,9 @@ export async function formattingIntegrated(
   }
   try {
     const engine = new ESLint({ cwd: path.dirname(configPath) });
-    const config = z.object({ rules: z.optional(z.record(z.string(), z.unknown())) }).parse(
-      await engine.calculateConfigForFile(file)
-    );
+    const config = z
+      .object({ rules: z.optional(z.record(z.string(), z.unknown())) })
+      .parse(await engine.calculateConfigForFile(file));
     const rule = config.rules?.["prettier/prettier"];
     return (
       rule !== undefined &&
@@ -122,12 +105,7 @@ export async function formattingIntegrated(
   }
 }
 
-export async function lint(
-  file: string,
-  content: string,
-  root: string,
-  configPath: string | undefined
-) {
+export async function lint(file: string, content: string, root: string, configPath: string | undefined) {
   const fallback = configPath ? undefined : await fallbackConfig(file, root);
   const options: Record<string, unknown> = {
     cwd: configPath ? path.dirname(configPath) : root,
@@ -138,8 +116,7 @@ export async function lint(
     options.overrideConfig = fallback.config;
   }
   const engine = new ESLint(options);
-  if (await engine.isPathIgnored(file))
-    return { ignored: true, findings: [] as Finding[] };
+  if (await engine.isPathIgnored(file)) return { ignored: true, findings: [] as Finding[] };
   const run = async () => {
     const results = await engine.lintText(content, { filePath: file });
     return results[0];
@@ -148,10 +125,7 @@ export async function lint(
   let typedSkipped = false;
   if (
     fallback?.typed &&
-    result.messages.some(
-      (item: Finding) =>
-        item.fatal && /project service|tsconfig/i.test(item.message)
-    )
+    result.messages.some((item: Finding) => item.fatal && /project service|tsconfig/i.test(item.message))
   ) {
     const untyped = await fallbackConfig(file, root, true);
     // This file is outside its project TS program; keep linting with untyped rules.

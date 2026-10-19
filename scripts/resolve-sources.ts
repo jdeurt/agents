@@ -6,7 +6,7 @@ import { syncImports } from "./sync-imports.ts";
 export async function withResolvedSources<T>(root: string, use: (resolved: string) => Promise<T>): Promise<T> {
   const resolved = await realpath(await mkdtemp(path.join(tmpdir(), "agents-sources-")));
   try {
-    for (const item of ["plugins", "eslint.config.ts", "prettier.config.mjs", "marketplace.toml", "imports.toml"])
+    for (const item of ["plugins", "eslint.config.ts", "marketplace.toml", "imports.toml"])
       await cp(path.join(root, item), path.join(resolved, item), {
         recursive: true,
       });

@@ -62,11 +62,16 @@ test(
           z.object({ mcpServers: z.string() })
         );
         assert.equal(engineering.mcpServers, "./.mcp.json");
-        for (const name of ["eslint.config.ts", "prettier.config.mjs"]) {
+        for (const name of ["eslint.config.ts"]) {
           const source = await readFile(path.join(process.cwd(), name), "utf8");
           for (const host of ["codex", "claude"])
             assert.equal(await readFile(path.join(output, `dist/${host}/plugins/engineering/${name}`), "utf8"), source);
         }
+        for (const host of ["codex", "claude"])
+          assert.equal(
+            await Bun.file(path.join(output, `dist/${host}/plugins/engineering/prettier.config.mjs`)).exists(),
+            false
+          );
         const bunMcp = await json(
           "dist/codex/plugins/engineering/.mcp.json",
           z.object({ bun: z.object({ url: z.string() }) })
