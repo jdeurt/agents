@@ -42,8 +42,8 @@ url = "https://bun.com/docs/mcp"
 
 [[plugins]]
 name = "writing"
-version = "1.0.0"
-description = "Write clearly and concisely, and keep edited text coherent."
+version = "1.0.1"
+description = "Co-author documents, write clearly and concisely, and keep edited text coherent."
 harnesses = ["claude", "codex"]
 category = "Writing"
 
