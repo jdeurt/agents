@@ -1,1 +1,1 @@
-export { createConfig, formattingIntegrated } from "../../eslint.config.ts";
+export { default, createConfig, formattingIntegrated } from "../../eslint.config.ts";

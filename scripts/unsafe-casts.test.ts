@@ -1,4 +1,4 @@
-import { test, expect } from "bun:test";
+import { expect, test } from "bun:test";
 import { ESLint } from "eslint";
 import path from "node:path";
 import { createConfig } from "../eslint.config.ts";
@@ -10,6 +10,7 @@ async function findings(source: string, typed: boolean) {
     overrideConfig: createConfig({ typed, tsconfigRootDir: process.cwd(), hook: true }),
   });
   const [result] = await engine.lintText(source, { filePath: path.resolve("scripts/unsafe-casts.test.ts") });
+
   return result.messages.map((item) => item.ruleId);
 }
 

@@ -10,7 +10,9 @@ export async function withResolvedSources<T>(root: string, use: (resolved: strin
       await cp(path.join(root, item), path.join(resolved, item), {
         recursive: true,
       });
+
     await syncImports({ root, output: resolved });
+
     return await use(resolved);
   } finally {
     await rm(resolved, { recursive: true, force: true });

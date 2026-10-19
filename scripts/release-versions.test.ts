@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { mkdir, mkdtemp, rm } from "node:fs/promises";
 import path from "node:path";
 import { tmpdir } from "node:os";
-import { releaseVersions, nextVersion } from "./release-versions.ts";
+import { nextVersion, releaseVersions } from "./release-versions.ts";
 import { writeFile } from "./io.ts";
 import type { Registry } from "./types.ts";
 

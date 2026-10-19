@@ -1,6 +1,6 @@
 import { afterEach, expect, test } from "bun:test";
 import { spawnSync } from "node:child_process";
-import { chmod, mkdtemp, mkdir, readFile, rm, symlink, writeFile } from "node:fs/promises";
+import { chmod, mkdir, mkdtemp, readFile, rm, symlink, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { editedPaths, run } from "../plugins/engineering/scripts/post-edit-core.ts";
@@ -16,6 +16,36 @@ process.env.JDEURT_HOOK_DEPS_ROOT = process.cwd();
 
 test("bundled formatting defaults use a 120-column width", () => {
   expect(PRETTIER_DEFAULTS.printWidth).toBe(120);
+});
+
+test("shared policy enables the requested modern rules at their chosen severities", () => {
+  const config = createConfig({ hook: true });
+  const common = config.find((item) => item.rules?.["unicorn/try-complexity"] === "warn");
+
+  for (const name of [
+    "no-duplicate-imports",
+    "no-inner-declarations",
+    "no-self-compare",
+    "no-unreachable-loop",
+    "no-use-before-define",
+    "complexity",
+    "eqeqeq",
+    "no-lonely-if",
+    "no-magic-numbers",
+    "no-shadow",
+    "prefer-const",
+    "sort-imports",
+    "unicorn/no-repeated-call-wrappers",
+    "unicorn/try-complexity",
+  ])
+    expect(common?.rules?.[name]).toBe("warn");
+
+  expect(common?.rules?.["no-var"]).toBe("error");
+  const typed = config.find((item) => item.rules?.["@typescript-eslint/no-shadow"]);
+  expect(typed?.rules?.["@typescript-eslint/no-shadow"]).toBe("warn");
+  expect(typed?.rules?.["@typescript-eslint/no-use-before-define"]).toBe("warn");
+  const spacing = config.find((item) => item.rules?.["@stylistic/padding-line-between-statements"]);
+  expect(spacing?.rules?.["@stylistic/padding-line-between-statements"]?.[0]).toBe("warn");
 });
 
 test("JavaScript formatting needs no repository-only TOML plugin", async () => {
@@ -51,6 +81,7 @@ async function fixture() {
   roots.push(root);
   await symlink(deps, path.join(root, "node_modules"));
   await writeFile(path.join(root, "package.json"), '{"type":"module"}');
+
   return root;
 }
 
@@ -58,8 +89,8 @@ afterEach(async () => {
   await Promise.all(roots.splice(0).map((root) => rm(root, { recursive: true, force: true })));
 });
 
-function event(root: string, file: string, tool = "Write") {
-  return { cwd: root, tool_name: tool, tool_input: { file_path: file } };
+function event(root: string, file: string) {
+  return { cwd: root, tool_name: "Write", tool_input: { file_path: file } };
 }
 
 test("extracts only explicit edited JS/TS paths from batch and patch input", () => {
@@ -115,6 +146,8 @@ test("native Codex PostToolUse string response formats and reports findings", as
   expect(result.status).toBe(0);
   expect(result.stdout).toContain("Formatted/fixed; re-read file.");
   expect(result.stdout).toContain("no-undef");
+  expect(result.stdout).toContain("example.js:\nFormatted/fixed; re-read file.\n");
+  expect(result.stdout).not.toContain(" | ");
   expect(await readFile(file, "utf8")).toBe("const count = 1;\nconsole.log(count, missing);\n");
 });
 
@@ -195,7 +228,9 @@ test("missing Bun produces a nonblocking installation request", async () => {
   const module = await import("../plugins/engineering/hooks/post-edit.ts");
   const hook = module.default;
   const command = hook.handler.type === "command" && hook.handler.command;
-  if (typeof command !== "string") throw new Error("Expected command hook");
+
+  if (typeof command !== "string") throw new TypeError("Expected command hook");
+
   const result = spawnSync("/bin/sh", ["-c", command], {
     env: { PATH: "/usr/bin:/bin" },
     encoding: "utf8",

@@ -1,4 +1,4 @@
-import { mkdtemp, mkdir, realpath, rm } from "node:fs/promises";
+import { mkdir, mkdtemp, realpath, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { git } from "./git.ts";
@@ -30,6 +30,7 @@ export async function withImportFixture<T>(use: (upstream: string) => Promise<T>
     await writeFile(path.join(upstream, "sample/hooks.json"), '{"hooks":{}}\n');
     await writeFile(path.join(upstream, "sample/.mcp.json"), '{"docs":{"url":"https://example.com/mcp"}}\n');
     await writeFile(path.join(upstream, "LICENSE"), "Fixture license\n");
+
     for (const manifest of ["plugin.json", ".codex-plugin/plugin.json", ".claude-plugin/plugin.json"]) {
       await Bun.write(
         path.join(upstream, manifest),
@@ -40,6 +41,7 @@ export async function withImportFixture<T>(use: (upstream: string) => Promise<T>
         })
       );
     }
+
     git(upstream, ["init", "-b", "trunk"]);
     git(upstream, ["config", "user.name", "Test"]);
     git(upstream, ["config", "user.email", "test@example.com"]);
@@ -50,12 +52,14 @@ export async function withImportFixture<T>(use: (upstream: string) => Promise<T>
     process.env.GIT_CONFIG_VALUE_0 = "https://github.com/shadcn-ui/ui.git";
     process.env.GIT_CONFIG_KEY_1 = `url.file://${upstream}.insteadOf`;
     process.env.GIT_CONFIG_VALUE_1 = "https://github.com/cloudflare/skills.git";
+
     return await use(upstream);
   } finally {
     for (const [i, key] of keys.entries()) {
       if (previous[i] === undefined) Reflect.deleteProperty(process.env, key);
       else process.env[key] = previous[i];
     }
+
     await rm(upstream, { recursive: true, force: true });
   }
 }

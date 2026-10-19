@@ -20,6 +20,7 @@ test(
           await cp(path.join(source, item), path.join(root, item), {
             recursive: true,
           });
+
         const output = path.join(root, "build");
         const original = await readFile(path.join(root, "imports.toml"), "utf8");
         const pinned = git(upstream, ["rev-parse", "HEAD"]);
@@ -36,7 +37,7 @@ test(
         assert.equal(await Bun.file(path.join(root, "plugins/design/skills/shadcn/SKILL.md")).exists(), false);
         await writeFile(
           path.join(root, "imports.toml"),
-          original.replace('name = "shadcn"', `name = "shadcn"\nref = "${pinned}"`)
+          original.replace('name = "shadcn"', () => `name = "shadcn"\nref = "${pinned}"`)
         );
         await buildMarketplace({ root, output });
         assert.equal(

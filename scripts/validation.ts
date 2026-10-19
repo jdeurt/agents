@@ -69,5 +69,6 @@ const registry = z.strictObject({
 export function parseRegistry(value: unknown): Registry {
   const parsed = registry.parse(value);
   validateRegistry(parsed);
+
   return parsed;
 }

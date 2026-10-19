@@ -2,7 +2,7 @@ import { withImportFixture } from "./import-fixture.ts";
 import { readFile, writeFile } from "./io.ts";
 import { test } from "bun:test";
 import assert from "node:assert/strict";
-import { mkdtemp, rm, symlink, mkdir } from "node:fs/promises";
+import { mkdir, mkdtemp, rm, symlink } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { validateSkillFrontmatter } from "./file-validation.ts";
@@ -20,11 +20,13 @@ test(
         await buildMarketplace({ output });
         const json = async <T>(name: string, schema: z.ZodMiniType<T>): Promise<T> =>
           schema.parse(JSON.parse(await readFile(path.join(output, name), "utf8")));
+
         for await (const file of new Bun.Glob("dist/*/plugins/*/skills/*/SKILL.md").scan(output)) {
           await validateSkillFrontmatter(path.join(output, file), {
-            harness: z.enum(["claude", "codex"]).parse(file.split("/")[1]),
+            harness: z.enum(["claude", "codex"]).parse(file.split("/", 2)[1]),
           });
         }
+
         const codex = await json(
           ".agents/plugins/marketplace.json",
           z.object({
@@ -62,11 +64,23 @@ test(
           z.object({ mcpServers: z.string() })
         );
         assert.equal(engineering.mcpServers, "./.mcp.json");
+        const hookDependencies = await json(
+          "dist/codex/plugins/engineering/hook-deps/package.json",
+          z.object({ dependencies: z.record(z.string(), z.string()) })
+        );
+        assert.equal(hookDependencies.dependencies["eslint-plugin-unicorn"], "78.0.0");
+        assert.equal(
+          await Bun.file(path.join(output, "dist/codex/plugins/engineering/hook-deps/bun.lock")).exists(),
+          false
+        );
+
         for (const name of ["eslint.config.ts", "prettier.config.mjs"]) {
           const source = await readFile(path.join(process.cwd(), name), "utf8");
+
           for (const host of ["codex", "claude"])
             assert.equal(await readFile(path.join(output, `dist/${host}/plugins/engineering/${name}`), "utf8"), source);
         }
+
         const bunMcp = await json(
           "dist/codex/plugins/engineering/.mcp.json",
           z.object({ bun: z.object({ url: z.string() }) })
@@ -102,6 +116,7 @@ test(
 
 test("rejects import traversal and symlinks; hashes executable mode and content", async () => {
   for (const value of ["../outside", "/absolute", ".git/config"]) assert.throws(() => inside("/safe", value));
+
   const root = await mkdtemp(path.join(tmpdir(), "agents-hash-"));
   try {
     await mkdir(path.join(root, "skill"));

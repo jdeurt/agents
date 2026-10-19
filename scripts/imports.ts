@@ -16,6 +16,7 @@ const saveRegistry = async () => {
   const contents = Bun.TOML.stringify(registry);
   await writeFile(path.join(root, "marketplace.toml"), contents);
 };
+
 if (command === "check" && args.length === 0) {
   console.log(`Validated ${String(entries.length)} imports and markers.`);
 } else if (command === "sync" && args.length === 0) {
@@ -26,29 +27,37 @@ if (command === "check" && args.length === 0) {
   console.log("Resolved latest imports and built .marketplace-build/.");
 } else if (command === "remove" && args.length === 1) {
   const entry = entries.find((item) => item.name === args[0]);
+
   if (!entry) throw new Error(`Unknown import: ${args[0]}`);
+
   await rm(path.join(root, entry.destination + ".import"));
   await saveImports(
     root,
     entries.filter((item) => item !== entry)
   );
+
   if (entry.kind === "plugin") {
     registry.plugins = registry.plugins.filter((plugin) => plugin.name !== path.basename(entry.destination));
     await saveRegistry();
   }
 } else if (command === "add") {
   const [kind, name, repository, source, destination, license, ...flags] = args;
+
   if (args.length < 6 || flags.length % 2)
     throw new Error(
       "Usage: imports:add <skill|plugin> <name> <GitHub URL> <source path> <destination> " +
         "<license path> [--ref ref] [--harness codex|claude|both]"
     );
+
   const options = new Map<string, string>();
+
   for (let i = 0; i < flags.length; i += 2) {
     if (!["--ref", "--harness"].includes(flags[i]) || options.has(flags[i]))
       throw new Error("Unknown or duplicate option");
+
     options.set(flags[i], flags[i + 1]);
   }
+
   const entry: ExternalImport = {
     kind: z.enum(["skill", "plugin"]).parse(kind),
     name,
@@ -56,15 +65,18 @@ if (command === "check" && args.length === 0) {
     path: source,
     destination,
     license,
-    ...(options.has("--ref") ? { ref: options.get("--ref") } : {}),
+    ...(options.has("--ref") && { ref: options.get("--ref") }),
   };
   const harness = options.get("--harness");
+
   if (kind === "plugin" && !["codex", "claude", "both"].includes(harness ?? ""))
     throw new Error("Plugin imports require --harness codex|claude|both");
+
   const original = await readFile(path.join(root, "imports.toml"), "utf8");
   try {
     await saveImports(root, [...entries, entry]);
     await readImports(root);
+
     for (const target of [destination, destination + ".import"]) {
       try {
         await lstat(path.join(root, target));
@@ -73,12 +85,17 @@ if (command === "check" && args.length === 0) {
         if (!(error instanceof Error && "code" in error && error.code === "ENOENT")) throw error;
       }
     }
-    const pluginName = destination.split("/")[1];
-    if (kind === "skill" && !registry.plugins.some((plugin) => plugin.name === pluginName && !plugin.native))
+
+    const pluginName = destination.split("/", 2)[1];
+
+    if (kind === "skill" && registry.plugins.every((plugin) => !(plugin.name === pluginName && !plugin.native)))
       throw new Error("Skill imports require an existing compiled plugin");
+
     if (kind === "plugin" && registry.plugins.some((plugin) => plugin.name === pluginName))
       throw new Error("Plugin already registered");
+
     await writeMarker(root, entry);
+
     if (kind === "plugin") {
       registry.plugins.push({
         name: pluginName,
