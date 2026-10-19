@@ -1,14 +1,13 @@
-import { readFile, writeFile } from "./io.ts";
-import { cp, realpath, stat } from "node:fs/promises";
-import path from "node:path";
-import { compileProject } from "soubi/compiler";
-import type { HarnessOutput } from "soubi/compiler";
-
-import { parseSkillFrontmatter, validateSkillFrontmatter } from "./file-validation.ts";
-import { filesIn, inside, marketplaceSourceFilter } from "./build-files.ts";
-import type { BuiltFile, Plugin } from "./types.ts";
 import * as z from "zod/mini";
+import type { BuiltFile, Plugin } from "./types.ts";
+import { EXECUTABLE_BITS, EXECUTABLE_MODE, REGULAR_MODE } from "./file-modes.ts";
+import { type HarnessOutput, compileProject } from "soubi/compiler";
+import { cp, realpath, stat } from "node:fs/promises";
+import { filesIn, inside, marketplaceSourceFilter } from "./build-files.ts";
 import { jsonRecord, parseJsonRecord } from "./validation.ts";
+import { parseSkillFrontmatter, validateSkillFrontmatter } from "./file-validation.ts";
+import { readFile, writeFile } from "./io.ts";
+import path from "node:path";
 const json = (value: unknown) => `${JSON.stringify(value, undefined, 2)}\n`;
 
 function applyInvocationPolicies(
@@ -24,24 +23,32 @@ function applyInvocationPolicies(
     const skillPath = `skills/${name}/SKILL.md`;
     const skill = files.get(skillPath);
 
-    if (!skill) throw new Error(`${harness}: missing skill ${name}`);
+    if (!skill) {
+      throw new Error(`${harness}: missing skill ${name}`);
+    }
 
     const source = Buffer.from(skill.contents).toString();
     const { header, document: skillDocument } = parseSkillFrontmatter(source);
 
     // Soubi 0.0.1 flattens nested YAML metadata; retain the validated source fields.
     for (const key of Object.keys(metadata.metadata ?? {})) {
-      if (!Object.hasOwn(metadata, key)) Reflect.deleteProperty(skillDocument, key);
+      if (!Object.hasOwn(metadata, key)) {
+        Reflect.deleteProperty(skillDocument, key);
+      }
     }
 
-    for (const [key, value] of Object.entries(metadata)) skillDocument[key] = value;
+    for (const [key, value] of Object.entries(metadata)) {
+      skillDocument[key] = value;
+    }
 
     if (harness === "codex") {
       delete skillDocument["allowed-tools"];
       delete skillDocument["user-invocable"];
     }
 
-    if (explicit && harness === "claude") skillDocument["disable-model-invocation"] = true;
+    if (explicit && harness === "claude") {
+      skillDocument["disable-model-invocation"] = true;
+    }
 
     files.set(skillPath, {
       ...skill,
@@ -50,19 +57,23 @@ function applyInvocationPolicies(
         source.slice(header.position.end.offset),
     });
 
-    if (!explicit || harness !== "codex") continue;
+    if (!explicit || harness !== "codex") {
+      continue;
+    }
 
     const configPath = `skills/${name}/agents/openai.yaml`;
     const existing = files.get(configPath);
     const document = existing ? Bun.YAML.parse(Buffer.from(existing.contents).toString()) : {};
 
-    if (!document || typeof document !== "object" || Array.isArray(document))
+    if (!document || typeof document !== "object" || Array.isArray(document)) {
       throw new Error(`${configPath}: configuration must be a YAML mapping`);
+    }
 
     const policy: unknown = Reflect.get(document, "policy");
 
-    if (policy !== undefined && (!policy || typeof policy !== "object" || Array.isArray(policy)))
+    if (policy !== undefined && (!policy || typeof policy !== "object" || Array.isArray(policy))) {
       throw new Error(`${configPath}: policy must be a YAML mapping`);
+    }
 
     Reflect.set(document, "policy", {
       ...(policy && typeof policy === "object" && !Array.isArray(policy) && policy),
@@ -78,53 +89,72 @@ function applyInvocationPolicies(
   return files.values();
 }
 
+async function compileNativePlugin(plugin: Plugin, source: string, sourceFiles: string[]) {
+  const files = new Map<string, BuiltFile>();
+
+  for (const harness of plugin.harnesses) {
+    const manifestPath = `.${harness}-plugin/plugin.json`;
+    const portable = harness === "codex" && sourceFiles.includes("plugin.json");
+    const selected = portable ? "plugin.json" : manifestPath;
+    await readFile(path.join(source, selected), "utf8");
+
+    for (const file of sourceFiles) {
+      let contents = await readFile(path.join(source, file));
+
+      if (file === selected || file === manifestPath) {
+        contents = Buffer.from(
+          json({
+            ...JSON.parse(contents.toString()),
+            name: `jdeurt-${plugin.name}`,
+            version: plugin.version,
+          })
+        );
+      }
+
+      const info = await stat(path.join(source, file));
+      files.set(`dist/${harness}/plugins/${plugin.name}/${file}`, {
+        contents,
+        mode: info.mode & EXECUTABLE_BITS ? EXECUTABLE_MODE : REGULAR_MODE,
+      });
+    }
+  }
+
+  return files;
+}
+
+async function copyEngineeringPolicy(root: string, project: string, name: string) {
+  if (name !== "engineering") {
+    return;
+  }
+
+  for (const file of ["eslint.config.ts", "prettier.config.mjs"]) {
+    await cp(path.join(root, file), path.join(project, file));
+  }
+}
+
 export async function compilePlugin(root: string, plugin: Plugin, owner: string, staging: string) {
   const source = inside(root, `plugins/${plugin.name}`);
   const resolved = await realpath(source);
   const resolvedValue1 = await stat(source);
 
-  if (resolved !== source || !resolvedValue1.isDirectory()) throw new Error(`Invalid plugin source: ${source}`);
+  if (resolved !== source || !resolvedValue1.isDirectory()) {
+    throw new Error(`Invalid plugin source: ${source}`);
+  }
 
   const pluginsRoot = path.join(root, "plugins");
   const filter = marketplaceSourceFilter(pluginsRoot);
   const sourceFiles = await filesIn(source, "", pluginsRoot, new Set(), filter);
 
   if (plugin.native) {
-    const files = new Map<string, BuiltFile>();
-
-    for (const harness of plugin.harnesses) {
-      const manifestPath = `.${harness}-plugin/plugin.json`;
-      const portable = harness === "codex" && sourceFiles.includes("plugin.json");
-      const selected = portable ? "plugin.json" : manifestPath;
-      await readFile(path.join(source, selected), "utf8");
-
-      for (const file of sourceFiles) {
-        let contents = await readFile(path.join(source, file));
-
-        if (file === selected || file === manifestPath)
-          contents = Buffer.from(
-            json({
-              ...JSON.parse(contents.toString()),
-              name: `jdeurt-${plugin.name}`,
-              version: plugin.version,
-            })
-          );
-
-        const info = await stat(path.join(source, file));
-        files.set(`dist/${harness}/plugins/${plugin.name}/${file}`, {
-          contents,
-          mode: info.mode & 0o111 ? 0o755 : 0o644,
-        });
-      }
-    }
-
-    return files;
+    return compileNativePlugin(plugin, source, sourceFiles);
   }
 
   const skills = new Map<string, Awaited<ReturnType<typeof validateSkillFrontmatter>>>();
 
   for (const file of sourceFiles) {
-    if (path.basename(file) !== "SKILL.md") continue;
+    if (path.basename(file) !== "SKILL.md") {
+      continue;
+    }
 
     const metadata = await validateSkillFrontmatter(path.join(source, file));
     skills.set(metadata.name, metadata);
@@ -137,10 +167,7 @@ export async function compilePlugin(root: string, plugin: Plugin, owner: string,
   const project = path.join(staging, plugin.name);
   await cp(source, project, { recursive: true, dereference: true, filter });
 
-  if (plugin.name === "engineering") {
-    for (const name of ["eslint.config.ts", "prettier.config.mjs"])
-      await cp(path.join(root, name), path.join(project, name));
-  }
+  await copyEngineeringPolicy(root, project, plugin.name);
 
   const config = {
     ...plugin.soubi,
@@ -187,18 +214,23 @@ export async function compilePlugin(root: string, plugin: Plugin, owner: string,
   for (const harness of plugin.harnesses) {
     const output = result.outputs.find((item) => item.harness === harness);
 
-    if (!output) throw new Error(`${plugin.name}: missing ${harness} output`);
+    if (!output) {
+      throw new Error(`${plugin.name}: missing ${harness} output`);
+    }
 
     const base = `dist/${harness}/plugins/${plugin.name}`;
     const manifestPath = `.${harness}-plugin/plugin.json`;
 
-    if (output.files.every((file) => file.path !== manifestPath))
+    if (output.files.every((file) => file.path !== manifestPath)) {
       throw new Error(`${plugin.name}: missing ${harness} manifest`);
+    }
 
     for (const file of applyInvocationPolicies(output, harness, skills)) {
       // Soubi 0.0.1 emits obsolete manual-install advice for Codex plugin hooks.
       // Current local Codex loads bundled hooks after the user trusts the plugin.
-      if (plugin.name === "engineering" && harness === "codex" && file.path === "hooks/README.md") continue;
+      if (plugin.name === "engineering" && harness === "codex" && file.path === "hooks/README.md") {
+        continue;
+      }
 
       inside(root, file.path);
       let contents = Buffer.from(file.contents);
@@ -220,8 +252,9 @@ export async function compilePlugin(root: string, plugin: Plugin, owner: string,
 
         // Soubi 0.0.1 drops cwd for Codex; native plugins resolve it against their installed root.
         for (const [name, server] of Object.entries(plugin.soubi?.mcpServers ?? {})) {
-          if ("command" in server && server.command && server.cwd)
+          if ("command" in server && server.command && server.cwd) {
             servers[name].cwd = server.cwd.replaceAll("${PLUGIN_ROOT}", ".");
+          }
         }
 
         contents = Buffer.from(json(servers));
@@ -229,9 +262,11 @@ export async function compilePlugin(root: string, plugin: Plugin, owner: string,
 
       const target = `${base}/${file.path}`;
 
-      if (files.has(target)) throw new Error(`Duplicate generated file: ${target}`);
+      if (files.has(target)) {
+        throw new Error(`Duplicate generated file: ${target}`);
+      }
 
-      files.set(target, { contents, mode: file.executable ? 0o755 : 0o644 });
+      files.set(target, { contents, mode: file.executable ? EXECUTABLE_MODE : REGULAR_MODE });
     }
   }
 

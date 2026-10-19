@@ -1,7 +1,7 @@
-import { readFile } from "./io.ts";
-import path from "node:path";
-import Ajv from "ajv";
 import * as z from "zod/mini";
+import Ajv from "ajv";
+import path from "node:path";
+import { readFile } from "./io.ts";
 const schema = z
   .looseObject({ properties: z.record(z.string(), z.unknown()) })
   .parse(JSON.parse(await readFile(new URL("skill-frontmatter.schema.json", import.meta.url), "utf8")));
@@ -21,12 +21,15 @@ const nativeMetadataValidators = {
 export function parseSkillFrontmatter(source: string) {
   const match = /^---\r?\n([\s\S]*?)\r?\n---(?=\r?\n|$)/.exec(source);
 
-  if (!match) throw new Error("SKILL.md must start with YAML frontmatter.");
+  if (!match) {
+    throw new Error("SKILL.md must start with YAML frontmatter.");
+  }
 
   const document = Bun.YAML.parse(match[1]);
 
-  if (!document || typeof document !== "object" || Array.isArray(document))
+  if (!document || typeof document !== "object" || Array.isArray(document)) {
     throw new Error("Skill frontmatter must contain one YAML mapping.");
+  }
 
   return {
     header: { position: { end: { offset: match[0].length } } },
@@ -44,10 +47,13 @@ export async function validateSkillFrontmatter(filename: string, { harness }: { 
     .parse(document);
   const validateMetadata = harness === undefined ? validateSharedMetadata : nativeMetadataValidators[harness];
 
-  if (!validateMetadata(metadata)) throw new Error(ajv.errorsText(validateMetadata.errors));
+  if (!validateMetadata(metadata)) {
+    throw new Error(ajv.errorsText(validateMetadata.errors));
+  }
 
-  if (metadata.name !== path.basename(path.dirname(filename)))
+  if (metadata.name !== path.basename(path.dirname(filename))) {
     throw new Error("Skill name must match its directory name.");
+  }
 
   return metadata;
 }

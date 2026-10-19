@@ -16,3 +16,43 @@ license = "LICENSE"
 scripts = "all"
 hooks = true
 local_mcp = true
+
+[[imports]]
+name = "jscpd"
+kind = "skill"
+repository = "https://github.com/kucherenko/jscpd.git"
+path = "skills/jscpd"
+destination = "plugins/engineering/skills/jscpd"
+license = "LICENSE"
+
+[[imports]]
+name = "dry-refactoring"
+kind = "skill"
+repository = "https://github.com/kucherenko/jscpd.git"
+path = "skills/dry-refactoring"
+destination = "plugins/engineering/skills/dry-refactoring"
+license = "LICENSE"
+
+[[imports]]
+name = "codebase-refactoring"
+kind = "skill"
+repository = "https://github.com/kucherenko/jscpd.git"
+path = "skills/codebase-refactoring"
+destination = "plugins/engineering/skills/codebase-refactoring"
+license = "LICENSE"
+
+[[imports]]
+name = "compare-codebases"
+kind = "skill"
+repository = "https://github.com/kucherenko/jscpd.git"
+path = "skills/compare-codebases"
+destination = "plugins/engineering/skills/compare-codebases"
+license = "LICENSE"
+
+[[imports]]
+name = "code-migration"
+kind = "skill"
+repository = "https://github.com/kucherenko/jscpd.git"
+path = "skills/code-migration"
+destination = "plugins/engineering/skills/code-migration"
+license = "LICENSE"

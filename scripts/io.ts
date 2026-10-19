@@ -10,5 +10,7 @@ export async function readFile(file: string | URL, encoding?: "utf8"): Promise<s
 export async function writeFile(file: string | URL, data: string | Uint8Array, options?: { mode: number }) {
   await Bun.write(file, data);
 
-  if (options?.mode !== undefined) await chmod(file, options.mode);
+  if (options?.mode !== undefined) {
+    await chmod(file, options.mode);
+  }
 }

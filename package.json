@@ -8,7 +8,7 @@
     "test": "bun test scripts/",
     "format": "bun --bun prettier --write .",
     "format:check": "bun --bun prettier --check .",
-    "lint": "bun --bun eslint .",
+    "lint": "bun --bun eslint . --max-warnings 0",
     "check-types": "bun --bun tsc --noEmit",
     "imports:add": "bun scripts/imports.ts add",
     "imports:remove": "bun scripts/imports.ts remove",

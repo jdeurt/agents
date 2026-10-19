@@ -1,20 +1,23 @@
-import { test } from "bun:test";
-import assert from "node:assert/strict";
 import { mkdir, mkdtemp, rm } from "node:fs/promises";
-import { tmpdir } from "node:os";
-import path from "node:path";
+import assert from "node:assert/strict";
 import { git } from "./git.ts";
-import { writeFile } from "./io.ts";
+import path from "node:path";
 import { publishTree } from "./publish-marketplace.ts";
+import { test } from "bun:test";
+import { tmpdir } from "node:os";
+import { writeFile } from "./io.ts";
 
 test("publishes isolated snapshots, skips unchanged trees, and rejects stale leases", async () => {
   const directory = await mkdtemp(path.join(tmpdir(), "agents-publish-test-"));
+
   try {
     const remote = path.join(directory, "remote.git");
     const source = path.join(directory, "source");
     const output = path.join(directory, "output");
 
-    for (const p of [remote, source, output]) await mkdir(p);
+    for (const p of [remote, source, output]) {
+      await mkdir(p);
+    }
 
     git(remote, ["init", "--bare", "--quiet"]);
     git(source, ["init", "--quiet"]);

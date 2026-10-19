@@ -1,12 +1,12 @@
-import { test } from "bun:test";
-import assert from "node:assert/strict";
-import { mkdir, mkdtemp, rm } from "node:fs/promises";
-import { tmpdir } from "node:os";
-import path from "node:path";
 import * as z from "zod/mini";
-import { applyImportPolicy } from "./import-policy.ts";
+import { mkdir, mkdtemp, rm } from "node:fs/promises";
 import { readFile, writeFile } from "./io.ts";
 import type { ExternalImport } from "./types.ts";
+import { applyImportPolicy } from "./import-policy.ts";
+import assert from "node:assert/strict";
+import path from "node:path";
+import { test } from "bun:test";
+import { tmpdir } from "node:os";
 
 test("import policy removes unapproved code and executable integrations and explains omissions", async () => {
   const directory = await mkdtemp(path.join(tmpdir(), "agents-policy-test-"));
@@ -19,6 +19,7 @@ test("import policy removes unapproved code and executable integrations and expl
     license: "LICENSE",
     scripts: ["scripts/allowed.ts"],
   };
+
   try {
     await mkdir(path.join(directory, "scripts"));
     await mkdir(path.join(directory, ".codex-plugin"));

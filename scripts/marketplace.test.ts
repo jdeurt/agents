@@ -1,20 +1,31 @@
-import { withImportFixture } from "./import-fixture.ts";
-import { readFile, writeFile } from "./io.ts";
-import { test } from "bun:test";
-import assert from "node:assert/strict";
-import { mkdir, mkdtemp, rm, symlink } from "node:fs/promises";
-import { tmpdir } from "node:os";
-import path from "node:path";
-import { validateSkillFrontmatter } from "./file-validation.ts";
-import { buildMarketplace } from "./build-marketplace.ts";
-import { digest, inside, syncImports } from "./sync-imports.ts";
 import * as z from "zod/mini";
+import { digest, inside, syncImports } from "./sync-imports.ts";
+import { mkdir, mkdtemp, rm, symlink } from "node:fs/promises";
+import { readFile, writeFile } from "./io.ts";
+import assert from "node:assert/strict";
+import { buildMarketplace } from "./build-marketplace.ts";
+import path from "node:path";
+import { test } from "bun:test";
+
+const INTEGRATION_TIMEOUT_MS = 30_000;
+import { tmpdir } from "node:os";
+import { validateSkillFrontmatter } from "./file-validation.ts";
+import { withImportFixture } from "./import-fixture.ts";
+
+async function assertImportedJscpdSkills(output: string) {
+  for (const name of ["jscpd", "dry-refactoring", "codebase-refactoring", "compare-codebases", "code-migration"]) {
+    for (const host of ["codex", "claude"]) {
+      await readFile(path.join(output, `dist/${host}/plugins/engineering/skills/${name}/SKILL.md`));
+    }
+  }
+}
 
 test(
   "packages both harnesses, retains portable skills and imports, and detects tampering",
   async () =>
     withImportFixture(async () => {
       const output = await mkdtemp(path.join(tmpdir(), "agents-test-"));
+
       try {
         await syncImports({ check: true });
         await buildMarketplace({ output });
@@ -77,8 +88,9 @@ test(
         for (const name of ["eslint.config.ts", "prettier.config.mjs"]) {
           const source = await readFile(path.join(process.cwd(), name), "utf8");
 
-          for (const host of ["codex", "claude"])
+          for (const host of ["codex", "claude"]) {
             assert.equal(await readFile(path.join(output, `dist/${host}/plugins/engineering/${name}`), "utf8"), source);
+          }
         }
 
         const bunMcp = await json(
@@ -91,6 +103,8 @@ test(
           z.object({ mcpServers: z.object({ bun: z.object({ url: z.string() }) }) })
         );
         assert.equal(claudeMcp.mcpServers.bun.url, "https://bun.com/docs/mcp");
+
+        await assertImportedJscpdSkills(output);
         const skill = "dist/codex/plugins/design/skills/shadcn/SKILL.md";
         assert.doesNotMatch(await readFile(path.join(output, skill), "utf8"), /^allowed-tools:/m);
         assert.match(
@@ -111,13 +125,16 @@ test(
         await rm(output, { recursive: true, force: true });
       }
     }),
-  30_000
+  INTEGRATION_TIMEOUT_MS
 );
 
 test("rejects import traversal and symlinks; hashes executable mode and content", async () => {
-  for (const value of ["../outside", "/absolute", ".git/config"]) assert.throws(() => inside("/safe", value));
+  for (const value of ["../outside", "/absolute", ".git/config"]) {
+    assert.throws(() => inside("/safe", value));
+  }
 
   const root = await mkdtemp(path.join(tmpdir(), "agents-hash-"));
+
   try {
     await mkdir(path.join(root, "skill"));
     await writeFile(path.join(root, "skill", "SKILL.md"), "original");

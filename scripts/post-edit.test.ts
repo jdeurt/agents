@@ -1,52 +1,18 @@
+import * as z from "zod/mini";
 import { afterEach, expect, test } from "bun:test";
-import { spawnSync } from "node:child_process";
+import { editedPaths, run } from "../plugins/engineering/scripts/post-edit-core.ts";
 import { mkdir, mkdtemp, readFile, rm, symlink, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { editedPaths, run } from "../plugins/engineering/scripts/post-edit-core.ts";
-import PRETTIER_DEFAULTS from "../prettier.config.mjs";
-import { createConfig } from "../eslint.config.ts";
-import reactHooks from "eslint-plugin-react-hooks";
-import reactDoctor from "eslint-plugin-react-doctor";
-import * as z from "zod/mini";
+import { spawnSync } from "node:child_process";
 
 const roots: string[] = [];
 const deps = path.resolve("node_modules");
 process.env.JDEURT_HOOK_DEPS_ROOT = process.cwd();
 
-test("bundled formatting defaults use a 120-column width", () => {
-  expect(PRETTIER_DEFAULTS.printWidth).toBe(120);
-});
-
-test("shared policy enables the requested modern rules at their chosen severities", () => {
-  const config = createConfig({ hook: true });
-  const common = config.find((item) => item.rules?.["unicorn/try-complexity"] === "warn");
-
-  for (const name of [
-    "no-duplicate-imports",
-    "no-inner-declarations",
-    "no-self-compare",
-    "no-unreachable-loop",
-    "no-use-before-define",
-    "complexity",
-    "eqeqeq",
-    "no-lonely-if",
-    "no-magic-numbers",
-    "no-shadow",
-    "prefer-const",
-    "sort-imports",
-    "unicorn/no-repeated-call-wrappers",
-    "unicorn/try-complexity",
-  ])
-    expect(common?.rules?.[name]).toBe("warn");
-
-  expect(common?.rules?.["no-var"]).toBe("error");
-  const typed = config.find((item) => item.rules?.["@typescript-eslint/no-shadow"]);
-  expect(typed?.rules?.["@typescript-eslint/no-shadow"]).toBe("warn");
-  expect(typed?.rules?.["@typescript-eslint/no-use-before-define"]).toBe("warn");
-  const spacing = config.find((item) => item.rules?.["@stylistic/padding-line-between-statements"]);
-  expect(spacing?.rules?.["@stylistic/padding-line-between-statements"]?.[0]).toBe("warn");
-});
+function event(root: string, file: string) {
+  return { cwd: root, tool_name: "Write", tool_input: { file_path: file } };
+}
 
 test("JavaScript formatting needs no repository-only TOML plugin", async () => {
   const root = await mkdtemp(path.join(os.tmpdir(), "engineering-prettier-"));
@@ -63,19 +29,6 @@ test("JavaScript formatting needs no repository-only TOML plugin", async () => {
   expect(await readFile(file, "utf8")).toBe("const x = 1;\n");
 });
 
-test("React Hooks uses its installed modern flat preset", () => {
-  const config = createConfig({ hook: true });
-  const entry = config.find((item) => item.plugins?.["react-hooks"]);
-  expect(entry?.rules).toBe(reactHooks.configs.flat["recommended-latest"].rules);
-  expect(entry?.rules?.["react-hooks/unsupported-syntax"]).toBeDefined();
-});
-
-test("React Doctor uses its installed recommended preset", () => {
-  const config = createConfig({ hook: true });
-  const entry = config.find((item) => item.plugins?.["react-doctor"]);
-  expect(entry?.rules).toBe(reactDoctor.configs.recommended.rules);
-});
-
 async function fixture() {
   const root = await mkdtemp(path.join(os.tmpdir(), "engineering-hook-"));
   roots.push(root);
@@ -88,10 +41,6 @@ async function fixture() {
 afterEach(async () => {
   await Promise.all(roots.splice(0).map((root) => rm(root, { recursive: true, force: true })));
 });
-
-function event(root: string, file: string) {
-  return { cwd: root, tool_name: "Write", tool_input: { file_path: file } };
-}
 
 test("extracts only explicit edited JS/TS paths from batch and patch input", () => {
   expect(
@@ -225,12 +174,14 @@ test("fallback uses type-aware unsafe assertion rule with a suitable tsconfig", 
   expect(result).not.toContain("Type-aware rules skipped");
 });
 
-test("missing Bun produces a nonblocking installation request", async () => {
+test("missing npx produces a nonblocking installation request", async () => {
   const module = await import("../plugins/engineering/hooks/post-edit.ts");
   const hook = module.default;
   const command = hook.handler.type === "command" && hook.handler.command;
 
-  if (typeof command !== "string") throw new TypeError("Expected command hook");
+  if (typeof command !== "string") {
+    throw new TypeError("Expected command hook");
+  }
 
   const result = spawnSync("/bin/sh", ["-c", command], {
     env: { PATH: "/usr/bin:/bin" },
@@ -240,7 +191,7 @@ test("missing Bun produces a nonblocking installation request", async () => {
   const response = z
     .object({ hookSpecificOutput: z.object({ additionalContext: z.string() }) })
     .parse(JSON.parse(result.stdout));
-  expect(response.hookSpecificOutput.additionalContext).toContain("Please install Bun");
+  expect(response.hookSpecificOutput.additionalContext).toContain("Please install Node.js and npm");
 });
 
 test("bundled ESLint and Prettier policy ignores project configs and emits no TS output", async () => {
@@ -265,6 +216,8 @@ test("bundled ESLint and Prettier policy ignores project configs and emits no TS
   expect(result).toContain("Formatted/fixed");
   expect(await readFile(file, "utf8")).toBe('const greeting = "hello";\n');
   expect(result).toContain("@typescript-eslint/no-unused-vars");
+  expect(result).toContain("error:1 @typescript-eslint/no-unused-vars");
+  expect(result).not.toContain("warning:");
   expect(await Bun.file(path.join(root, "output")).exists()).toBe(false);
   expect(await readFile(path.join(root, "tsconfig.json"), "utf8")).toContain('"strict":false');
 });
@@ -297,14 +250,4 @@ test("ignores generated, deleted, symlink-escaped and unsupported files", async 
   expect(await run(event(root, path.join(root, "missing.js")))).toBe("");
   expect(await run(event(root, path.join(root, "dist", "skip.js")))).toBe("");
   expect(await readFile(path.join(outside, "escape.js"), "utf8")).toBe("const x=1");
-});
-
-test("bundled React Doctor ESLint rules report React findings", async () => {
-  const root = await fixture();
-  const file = path.join(root, "View.jsx");
-  await writeFile(file, 'export function View() { return <img src="/photo.png" />; }\n');
-  process.env.JDEURT_EDIT_LINT_ACTIVE = "1";
-  const report = await run(event(root, file));
-  expect(report).toContain("react-doctor/alt-text");
-  expect(report).toContain("Fix all findings caused by your edit");
 });

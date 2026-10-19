@@ -1,12 +1,18 @@
-import { readFileSync } from "node:fs";
-import { access, readFile, realpath, writeFile } from "node:fs/promises";
-import path from "node:path";
-import { fileURLToPath } from "node:url";
 import * as z from "zod/mini";
 import { TYPESCRIPT, lint, nearest } from "./post-edit-lint.ts";
+import { access, readFile, realpath, writeFile } from "node:fs/promises";
+import { readFileSync, realpathSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+import path from "node:path";
 
 const SOURCE = /\.(?:[cm]?[jt]s|jsx|tsx)$/i;
 const SKIP = /(^|\/)(?:node_modules|dist|build|coverage|\.next|\.output|\.git|generated)(\/|$)/;
+const MAX_EDITED_FILES = 20;
+const MAX_FINDINGS = 4;
+const MAX_FINDING_MESSAGE_CHARS = 140;
+const MAX_ERROR_MESSAGE_CHARS = 220;
+const MAX_AGENT_CONTEXT_CHARS = 4000;
+const MAX_EVENT_BYTES = 256_000;
 
 const eventSchema = z.object({
   cwd: z.optional(z.string()),
@@ -29,17 +35,25 @@ export function editedPaths(event: Event): string[] {
   const input = event.tool_input ?? {};
   const tool = event.tool_name ?? "";
 
-  if (!/^(Write|Edit|MultiEdit|apply_patch)$/.test(tool)) return [];
+  if (!/^(Write|Edit|MultiEdit|apply_patch)$/.test(tool)) {
+    return [];
+  }
 
   const paths: unknown[] = [];
 
-  if (typeof input.file_path === "string") paths.push(input.file_path);
+  if (typeof input.file_path === "string") {
+    paths.push(input.file_path);
+  }
 
-  if (typeof input.filePath === "string") paths.push(input.filePath);
+  if (typeof input.filePath === "string") {
+    paths.push(input.filePath);
+  }
 
   if (Array.isArray(input.edits)) {
     for (const edit of z.array(z.unknown()).parse(input.edits)) {
-      if (edit && typeof edit === "object" && "file_path" in edit) paths.push(edit.file_path);
+      if (edit && typeof edit === "object" && "file_path" in edit) {
+        paths.push(edit.file_path);
+      }
     }
   }
 
@@ -47,7 +61,9 @@ export function editedPaths(event: Event): string[] {
     const patch = input.command ?? input.patch ?? input.patch_text;
 
     if (typeof patch === "string") {
-      for (const match of patch.matchAll(/^\*\*\* (?:Add|Update) File: (.+)$/gm)) paths.push(match[1]);
+      for (const match of patch.matchAll(/^\*\*\* (?:Add|Update) File: (.+)$/gm)) {
+        paths.push(match[1]);
+      }
     }
   }
 
@@ -61,32 +77,80 @@ export function editedPaths(event: Event): string[] {
   ];
 }
 
+async function inspectFile(file: string, content: string, root: string, cwd: string) {
+  const result = await lint(file, content, root);
+
+  if (result.ignored) {
+    return { content, notes: [] as string[], hasFindings: false, ignored: true };
+  }
+
+  const notes: string[] = [];
+
+  if (result.typedSkipped) {
+    notes.push("Type-aware rules skipped: file is outside its tsconfig.");
+  }
+
+  if (result.typedSkipReason) {
+    notes.push(`Type-aware rules skipped: ${result.typedSkipReason}.`);
+  }
+
+  if (TYPESCRIPT.test(file) && !(await nearest(path.dirname(file), ["tsconfig.json"], cwd))) {
+    notes.push("Type-aware rules skipped: no project tsconfig.");
+  }
+
+  for (const item of result.findings.slice(0, MAX_FINDINGS)) {
+    notes.push(
+      `error:${String(item.line ?? 0)} ${item.ruleId ?? "parser"}: ${item.message.replaceAll("\n", " ").slice(0, MAX_FINDING_MESSAGE_CHARS)}`
+    );
+  }
+
+  if (result.findings.length > MAX_FINDINGS) {
+    notes.push(`... ${String(result.findings.length - MAX_FINDINGS)} more findings`);
+  }
+
+  return {
+    content: result.output ?? content,
+    notes,
+    hasFindings: result.findings.length > 0,
+    ignored: false,
+  };
+}
+
 export async function run(event: Event): Promise<string> {
-  if (process.env.JDEURT_EDIT_LINT_ACTIVE !== "1") return "Edit lint core must run through its bounded hook wrapper.";
+  if (process.env.JDEURT_EDIT_LINT_ACTIVE !== "1") {
+    return "Edit lint core must run through its bounded hook wrapper.";
+  }
 
   if (
     event.tool_response &&
     typeof event.tool_response === "object" &&
     "isError" in event.tool_response &&
     event.tool_response.isError === true
-  )
+  ) {
     return "";
+  }
 
   const suppliedCwd = path.resolve(event.cwd ?? process.cwd());
   const cwd = await realpath(suppliedCwd);
   const lines: string[] = [];
   let hasFindings = false;
 
-  for (const name of editedPaths(event).slice(0, 20)) {
+  for (const name of editedPaths(event).slice(0, MAX_EDITED_FILES)) {
     const candidate = path.resolve(suppliedCwd, name);
 
-    if (candidate !== suppliedCwd && !candidate.startsWith(`${suppliedCwd}${path.sep}`)) continue;
+    if (candidate !== suppliedCwd && !candidate.startsWith(`${suppliedCwd}${path.sep}`)) {
+      continue;
+    }
 
-    if (!(await exists(candidate))) continue;
+    if (!(await exists(candidate))) {
+      continue;
+    }
 
     const file = await realpath(candidate);
 
-    if (!file.startsWith(`${cwd}${path.sep}`) || SKIP.test(file)) continue;
+    if (!file.startsWith(`${cwd}${path.sep}`) || SKIP.test(file)) {
+      continue;
+    }
 
     const rootConfig = await nearest(path.dirname(file), ["package.json"], cwd);
     const root = rootConfig ? path.dirname(rootConfig) : cwd;
@@ -95,31 +159,17 @@ export async function run(event: Event): Promise<string> {
     const notes: string[] = [];
 
     try {
-      const result = await lint(file, content, root);
+      const result = await inspectFile(file, content, root, cwd);
 
-      if (result.ignored) continue;
-
-      content = result.output ?? content;
-
-      if (result.typedSkipped) notes.push("Type-aware rules skipped: file is outside its tsconfig.");
-
-      if (result.typedSkipReason) notes.push(`Type-aware rules skipped: ${result.typedSkipReason}.`);
-
-      if (TYPESCRIPT.test(file) && !(await nearest(path.dirname(file), ["tsconfig.json"], cwd)))
-        notes.push("Type-aware rules skipped: no project tsconfig.");
-
-      const findings = result.findings;
-      if (findings.length > 0) hasFindings = true;
-
-      for (const item of findings.slice(0, 4)) {
-        notes.push(
-          `${item.severity === 2 ? "error" : "warning"}:${String(item.line ?? 0)} ${item.ruleId ?? "parser"}: ${item.message.replaceAll("\n", " ").slice(0, 140)}`
-        );
+      if (result.ignored) {
+        continue;
       }
 
-      if (findings.length > 4) notes.push(`... ${String(findings.length - 4)} more findings`);
+      content = result.content;
+      notes.push(...result.notes);
+      hasFindings ||= result.hasFindings;
     } catch (error) {
-      notes.push(`ESLint unavailable or crashed: ${String(error).slice(0, 220)}`);
+      notes.push(`ESLint unavailable or crashed: ${String(error).slice(0, MAX_ERROR_MESSAGE_CHARS)}`);
     }
 
     if (content !== original && (await readFile(file, "utf8")) === original) {
@@ -127,22 +177,28 @@ export async function run(event: Event): Promise<string> {
       notes.unshift("Formatted/fixed; re-read file.");
     }
 
-    if (notes.length > 0) lines.push(`${path.relative(cwd, file)}:\n${notes.join("\n")}`);
+    if (notes.length > 0) {
+      lines.push(`${path.relative(cwd, file)}:\n${notes.join("\n")}`);
+    }
   }
 
-  if (hasFindings) lines.push("Fix all findings caused by your edit; follow these rules in future edits.");
+  if (hasFindings) {
+    lines.push("Fix all findings caused by your edit; follow these rules in future edits.");
+  }
 
-  return lines.join("\n").slice(0, 4000);
+  return lines.join("\n").slice(0, MAX_AGENT_CONTEXT_CHARS);
 }
 
-if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+if (process.argv[1] && realpathSync(process.argv[1]) === realpathSync(fileURLToPath(import.meta.url))) {
   try {
-    const input = readFileSync(0, "utf8").slice(0, 256_000);
+    const input = readFileSync(0, "utf8").slice(0, MAX_EVENT_BYTES);
     const event = eventSchema.parse(JSON.parse(input));
     const result = await run(event);
 
-    if (result) console.log(result);
+    if (result) {
+      console.log(result);
+    }
   } catch (error) {
-    console.log(`Edit lint hook could not inspect the edit: ${String(error).slice(0, 220)}`);
+    console.log(`Edit lint hook could not inspect the edit: ${String(error).slice(0, MAX_ERROR_MESSAGE_CHARS)}`);
   }
 }

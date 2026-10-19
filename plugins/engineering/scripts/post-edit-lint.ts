@@ -1,8 +1,8 @@
+import * as sharedConfig from "../eslint.config.ts";
+import * as ts from "typescript";
+import { ESLint } from "eslint";
 import { access } from "node:fs/promises";
 import path from "node:path";
-import { ESLint } from "eslint";
-import * as ts from "typescript";
-import * as sharedConfig from "../eslint.config.ts";
 
 export const TYPESCRIPT = /\.(?:[cm]?ts|tsx)$/i;
 export interface Finding {
@@ -27,10 +27,14 @@ export async function nearest(start: string, names: string[], limit: string) {
 
   while (current === limit || current.startsWith(`${limit}${path.sep}`)) {
     for (const name of names) {
-      if (await exists(path.join(current, name))) return path.join(current, name);
+      if (await exists(path.join(current, name))) {
+        return path.join(current, name);
+      }
     }
 
-    if (current === limit) break;
+    if (current === limit) {
+      break;
+    }
 
     current = path.dirname(current);
   }
@@ -38,24 +42,30 @@ export async function nearest(start: string, names: string[], limit: string) {
   return undefined;
 }
 
+function hasStrictNullChecks(tsconfig: string) {
+  const document = ts.readConfigFile(tsconfig, (filename) => ts.sys.readFile(filename));
+
+  if (document.error) {
+    throw new Error("invalid tsconfig");
+  }
+
+  const parsed = ts.parseJsonConfigFileContent(document.config, ts.sys, path.dirname(tsconfig));
+
+  if (parsed.errors.length > 0) {
+    throw new Error("invalid tsconfig");
+  }
+
+  return parsed.options.strictNullChecks ?? parsed.options.strict ?? false;
+}
+
 async function bundledConfig(file: string, root: string, forceUntyped = false) {
   const tsconfig = await nearest(path.dirname(file), ["tsconfig.json"], root);
   let typed = Boolean(!forceUntyped && tsconfig && TYPESCRIPT.test(file));
   let typedSkipReason: string | undefined;
 
-  if (typed) {
+  if (typed && tsconfig) {
     try {
-      if (!tsconfig) throw new Error("missing tsconfig");
-
-      const document = ts.readConfigFile(tsconfig, (filename) => ts.sys.readFile(filename));
-
-      if (document.error) throw new Error("invalid tsconfig");
-
-      const parsed = ts.parseJsonConfigFileContent(document.config, ts.sys, path.dirname(tsconfig));
-
-      if (parsed.errors.length > 0) throw new Error("invalid tsconfig");
-
-      if (!(parsed.options.strictNullChecks ?? parsed.options.strict ?? false)) {
+      if (!hasStrictNullChecks(tsconfig)) {
         typed = false;
         typedSkipReason = "project tsconfig does not enable strict null checks";
       }
@@ -83,7 +93,9 @@ export async function lint(file: string, content: string, root: string) {
 
   const engine = new ESLint(options);
 
-  if (await engine.isPathIgnored(file)) return { ignored: true, findings: [] as Finding[] };
+  if (await engine.isPathIgnored(file)) {
+    return { ignored: true, findings: [] as Finding[] };
+  }
 
   const results = await engine.lintText(content, { filePath: file });
   let result = results[0];
@@ -99,8 +111,8 @@ export async function lint(file: string, content: string, root: string) {
       ...options,
       overrideConfig: untyped.config,
     });
-    const results = await retry.lintText(content, { filePath: file });
-    result = results[0];
+    const retryResults = await retry.lintText(content, { filePath: file });
+    result = retryResults[0];
     typedSkipped = true;
   }
 

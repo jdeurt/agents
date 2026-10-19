@@ -1,26 +1,35 @@
-import path from "node:path";
-import { readFile, writeFile } from "./io.ts";
-import { filesIn } from "./build-files.ts";
-import { digest } from "./sync-imports.ts";
-import type { Registry } from "./types.ts";
 import * as z from "zod/mini";
+
+const VERSION_COMPONENT_COUNT = 3;
+import { readFile, writeFile } from "./io.ts";
+import type { Registry } from "./types.ts";
+import { digest } from "./sync-imports.ts";
+import { filesIn } from "./build-files.ts";
 import { jsonRecord } from "./validation.ts";
+import path from "node:path";
 
 export type ReleaseState = Record<string, { hash: string; version: string } | undefined>;
 export const releaseStateSchema = z.record(z.string(), z.object({ hash: z.string(), version: z.string() }));
 export function nextVersion(base: string, previous?: string) {
-  if (!/^\d+\.\d+\.\d+$/.test(base) || (previous && !/^\d+\.\d+\.\d+$/.test(previous)))
+  if (!/^\d+\.\d+\.\d+$/.test(base) || (previous && !/^\d+\.\d+\.\d+$/.test(previous))) {
     throw new Error("Publication requires plain semantic versions");
+  }
 
-  if (!previous) return base;
+  if (!previous) {
+    return base;
+  }
 
   const a = base.split(".").map(Number),
     b = previous.split(".").map(Number);
 
-  for (let i = 0; i < 3; i++) {
-    if (a[i] > b[i]) return base;
+  for (let i = 0; i < VERSION_COMPONENT_COUNT; i++) {
+    if (a[i] > b[i]) {
+      return base;
+    }
 
-    if (a[i] < b[i]) break;
+    if (a[i] < b[i]) {
+      break;
+    }
   }
 
   b[2]++;
@@ -40,7 +49,9 @@ export async function releaseVersions(output: string, registry: Registry, previo
       const files = await filesIn(directory);
 
       for (const manifest of ["plugin.json", ".codex-plugin/plugin.json", ".claude-plugin/plugin.json"]) {
-        if (!files.includes(manifest)) continue;
+        if (!files.includes(manifest)) {
+          continue;
+        }
 
         const filename = path.join(directory, manifest);
         const value = jsonRecord.parse(JSON.parse(await readFile(filename, "utf8")));

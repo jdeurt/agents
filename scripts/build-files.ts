@@ -1,7 +1,7 @@
 import { lstat, readdir, realpath, rmdir, stat } from "node:fs/promises";
-import path from "node:path";
 import type { Dirent } from "node:fs";
 import type { Registry } from "./types.ts";
+import path from "node:path";
 const HARNESSES = new Set(["claude", "codex"]);
 const NAME = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 const VERSION = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/;
@@ -17,14 +17,20 @@ export function marketplaceSourceFilter(pluginsRoot: string) {
 }
 
 function requireText(value: unknown, label: string) {
-  if (typeof value !== "string" || !value.trim()) throw new Error(`${label} must be a non-empty string`);
+  if (typeof value !== "string" || !value.trim()) {
+    throw new Error(`${label} must be a non-empty string`);
+  }
 }
 
 function fields(value: unknown, allowed: string[], label: string): asserts value is Record<string, unknown> {
-  if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error(`${label} must be a table`);
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    throw new Error(`${label} must be a table`);
+  }
 
   for (const key of Object.keys(value)) {
-    if (!allowed.includes(key)) throw new Error(`${label}: unknown field ${key}`);
+    if (!allowed.includes(key)) {
+      throw new Error(`${label}: unknown field ${key}`);
+    }
   }
 }
 
@@ -35,10 +41,31 @@ export function inside(root: string, relative: string) {
 
   const resolved = path.resolve(root, relative);
 
-  if (resolved === root || !resolved.startsWith(`${root}${path.sep}`))
+  if (resolved === root || !resolved.startsWith(`${root}${path.sep}`)) {
     throw new Error(`Unsafe generated path: ${relative}`);
+  }
 
   return resolved;
+}
+
+async function readDirectory(directory: string, linksWithin: string | undefined, parents: Set<string>) {
+  const info = await lstat(directory);
+
+  if (info.isSymbolicLink() && !linksWithin) {
+    throw new Error(`Symbolic links are not supported: ${directory}`);
+  }
+
+  const resolved = await realpath(directory);
+
+  if (linksWithin && resolved !== linksWithin && !resolved.startsWith(`${linksWithin}${path.sep}`)) {
+    throw new Error(`Source resource leaves the plugin sources: ${directory}`);
+  }
+
+  if (parents.has(resolved)) {
+    throw new Error(`Source resources contain a symlink cycle: ${directory}`);
+  }
+
+  return { entries: await readdir(directory, { withFileTypes: true }), parents: new Set([...parents, resolved]) };
 }
 
 export async function filesIn(
@@ -48,51 +75,49 @@ export async function filesIn(
   parents = new Set<string>(),
   filter?: (filename: string) => Promise<boolean>
 ): Promise<string[]> {
-  let entries: Dirent[];
+  let scanned: Awaited<ReturnType<typeof readDirectory>>;
+
   try {
-    const resolvedValue1 = await lstat(directory);
-
-    if (resolvedValue1.isSymbolicLink() && !linksWithin)
-      throw new Error(`Symbolic links are not supported: ${directory}`);
-
-    const resolved = await realpath(directory);
-
-    if (linksWithin && resolved !== linksWithin && !resolved.startsWith(`${linksWithin}${path.sep}`)) {
-      throw new Error(`Source resource leaves the plugin sources: ${directory}`);
-    }
-
-    if (parents.has(resolved)) throw new Error(`Source resources contain a symlink cycle: ${directory}`);
-
-    parents = new Set([...parents, resolved]);
-    entries = await readdir(directory, { withFileTypes: true });
+    scanned = await readDirectory(directory, linksWithin, parents);
   } catch (error) {
-    if (error instanceof Error && "code" in error && error.code === "ENOENT") return [];
+    if (error instanceof Error && "code" in error && error.code === "ENOENT") {
+      return [];
+    }
 
     throw error;
   }
+
   const files: string[] = [];
 
-  for (const entry of entries.sort((a, b) => a.name.localeCompare(b.name))) {
+  for (const entry of scanned.entries.sort((a, b) => a.name.localeCompare(b.name))) {
     const relative = path.posix.join(prefix, entry.name);
     const filename = path.join(directory, entry.name);
 
-    if (filter && !(await filter(filename))) continue;
+    if (filter && !(await filter(filename))) {
+      continue;
+    }
 
     let info: Pick<typeof entry, "isDirectory" | "isFile"> = entry;
 
     if (entry.isSymbolicLink()) {
-      if (!linksWithin) throw new Error(`Symbolic links are not supported: ${filename}`);
+      if (!linksWithin) {
+        throw new Error(`Symbolic links are not supported: ${filename}`);
+      }
 
       const resolved = await realpath(filename);
 
-      if (!resolved.startsWith(`${linksWithin}${path.sep}`))
+      if (!resolved.startsWith(`${linksWithin}${path.sep}`)) {
         throw new Error(`Source resource leaves the plugin sources: ${filename}`);
+      }
 
       info = await stat(resolved);
     }
 
-    if (info.isDirectory()) files.push(...(await filesIn(filename, relative, linksWithin, parents, filter)));
-    else if (info.isFile()) files.push(relative);
+    if (info.isDirectory()) {
+      files.push(...(await filesIn(filename, relative, linksWithin, scanned.parents, filter)));
+    } else if (info.isFile()) {
+      files.push(relative);
+    }
   }
 
   return files;
@@ -105,34 +130,47 @@ export async function checkOutputParents(root: string, relative: string) {
     try {
       const resolvedValue2 = await lstat(directory);
 
-      if (resolvedValue2.isSymbolicLink()) throw new Error(`Symbolic links are not supported: ${directory}`);
+      if (resolvedValue2.isSymbolicLink()) {
+        throw new Error(`Symbolic links are not supported: ${directory}`);
+      }
     } catch (error) {
-      if (!(error instanceof Error && "code" in error && error.code === "ENOENT")) throw error;
+      if (!(error instanceof Error && "code" in error && error.code === "ENOENT")) {
+        throw error;
+      }
     }
+
     directory = path.dirname(directory);
   }
 }
 
 export async function pruneEmptyDirectories(directory: string): Promise<void> {
   let entries: Dirent[];
+
   try {
     entries = await readdir(directory, { withFileTypes: true });
   } catch (error) {
-    if (error instanceof Error && "code" in error && error.code === "ENOENT") return;
+    if (error instanceof Error && "code" in error && error.code === "ENOENT") {
+      return;
+    }
 
     throw error;
   }
 
   for (const entry of entries) {
-    if (entry.isSymbolicLink())
+    if (entry.isSymbolicLink()) {
       throw new Error(`Symbolic links are not supported: ${path.join(directory, entry.name)}`);
+    }
 
-    if (entry.isDirectory()) await pruneEmptyDirectories(path.join(directory, entry.name));
+    if (entry.isDirectory()) {
+      await pruneEmptyDirectories(path.join(directory, entry.name));
+    }
   }
 
   const resolvedValue3 = await readdir(directory);
 
-  if (resolvedValue3.length === 0) await rmdir(directory);
+  if (resolvedValue3.length === 0) {
+    await rmdir(directory);
+  }
 }
 
 export function validateRegistry(registry: Registry) {
@@ -140,13 +178,21 @@ export function validateRegistry(registry: Registry) {
   fields(registry.marketplace, ["name", "display_name", "owner", "description"], "marketplace");
   const marketplace = registry.marketplace;
 
-  for (const key of ["name", "owner", "description"]) requireText(marketplace[key], `marketplace.${key}`);
+  for (const key of ["name", "owner", "description"]) {
+    requireText(marketplace[key], `marketplace.${key}`);
+  }
 
-  if (marketplace.display_name !== undefined) requireText(marketplace.display_name, "marketplace.display_name");
+  if (marketplace.display_name !== undefined) {
+    requireText(marketplace.display_name, "marketplace.display_name");
+  }
 
-  if (!NAME.test(marketplace.name)) throw new Error("marketplace.name must use lowercase kebab-case");
+  if (!NAME.test(marketplace.name)) {
+    throw new Error("marketplace.name must use lowercase kebab-case");
+  }
 
-  if (!Array.isArray(registry.plugins)) throw new TypeError("plugins must be an array");
+  if (!Array.isArray(registry.plugins)) {
+    throw new TypeError("plugins must be an array");
+  }
 
   const names = new Set();
 
@@ -168,15 +214,23 @@ export function validateRegistry(registry: Registry) {
       "plugin"
     );
 
-    for (const key of ["name", "version", "description", "category"]) requireText(plugin[key], `plugin.${key}`);
+    for (const key of ["name", "version", "description", "category"]) {
+      requireText(plugin[key], `plugin.${key}`);
+    }
 
-    if (!NAME.test(plugin.name)) throw new Error(`Invalid plugin name: ${plugin.name}`);
+    if (!NAME.test(plugin.name)) {
+      throw new Error(`Invalid plugin name: ${plugin.name}`);
+    }
 
-    if (names.has(plugin.name)) throw new Error(`Duplicate plugin: ${plugin.name}`);
+    if (names.has(plugin.name)) {
+      throw new Error(`Duplicate plugin: ${plugin.name}`);
+    }
 
     names.add(plugin.name);
 
-    if (!VERSION.test(plugin.version)) throw new Error(`Invalid version for ${plugin.name}: ${plugin.version}`);
+    if (!VERSION.test(plugin.version)) {
+      throw new Error(`Invalid version for ${plugin.name}: ${plugin.version}`);
+    }
 
     if (plugin.authentication !== undefined && !["on-install", "on-use"].includes(plugin.authentication)) {
       throw new Error(`${plugin.name}: authentication must be on-install or on-use`);
@@ -191,11 +245,19 @@ export function validateRegistry(registry: Registry) {
     }
 
     for (const harness of plugin.harnesses) {
-      if (!HARNESSES.has(harness)) throw new Error(`${plugin.name}: unsupported harness ${harness}`);
+      if (!HARNESSES.has(harness)) {
+        throw new Error(`${plugin.name}: unsupported harness ${harness}`);
+      }
     }
 
-    for (const key of ["author", "license"]) if (plugin[key] !== undefined) requireText(plugin[key], `plugin.${key}`);
+    for (const key of ["author", "license"]) {
+      if (plugin[key] !== undefined) {
+        requireText(plugin[key], `plugin.${key}`);
+      }
+    }
 
-    if (plugin.soubi) fields(plugin.soubi, ["mcpServers", "assets", "harnessDefaults"], `${plugin.name}.soubi`);
+    if (plugin.soubi) {
+      fields(plugin.soubi, ["mcpServers", "assets", "harnessDefaults"], `${plugin.name}.soubi`);
+    }
   }
 }

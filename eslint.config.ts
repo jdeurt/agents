@@ -1,13 +1,13 @@
+import { defineConfig } from "eslint/config";
+import { fileURLToPath } from "node:url";
 import js from "@eslint/js";
+import prettierOptions from "./prettier.config.mjs";
+import prettierRecommended from "eslint-plugin-prettier/recommended";
+import reactDoctorLint from "eslint-plugin-react-doctor";
+import reactHooks from "eslint-plugin-react-hooks";
 import stylistic from "@stylistic/eslint-plugin";
 import tseslint from "typescript-eslint";
 import unicorn from "eslint-plugin-unicorn";
-import reactHooks from "eslint-plugin-react-hooks";
-import reactDoctorLint from "eslint-plugin-react-doctor";
-import prettierRecommended from "eslint-plugin-prettier/recommended";
-import { fileURLToPath } from "node:url";
-import { defineConfig } from "eslint/config";
-import prettierOptions from "./prettier.config.mjs";
 
 // The build copies this source and bundles these pinned dependencies for Engineering.
 const resolutionRoot = fileURLToPath(new URL(".", import.meta.url));
@@ -38,16 +38,17 @@ export function createConfig(options: { typed?: boolean; tsconfigRootDir?: strin
         "no-self-compare": "warn",
         "no-unreachable-loop": "warn",
         "no-use-before-define": "warn",
-        complexity: "warn",
+        complexity: ["warn", { max: 30 }],
         eqeqeq: "warn",
         "no-lonely-if": "warn",
-        "no-magic-numbers": "warn",
+        // Structural offsets and small counts are self-explanatory; other values need names.
+        "no-magic-numbers": ["warn", { ignore: [0, 1, 2] }],
         "no-shadow": "warn",
         "no-var": "error",
         "prefer-const": "warn",
         "sort-imports": "warn",
         "unicorn/no-repeated-call-wrappers": "warn",
-        "unicorn/try-complexity": "warn",
+        "unicorn/try-complexity": ["warn", { max: 5 }],
         // Existing CLI code relies on nested schema builders, descriptive boolean names,
         // in-place sorts, and explicit module setup. These newer preset rules obscure those patterns.
         "unicorn/consistent-boolean-name": "off",
@@ -73,7 +74,7 @@ export function createConfig(options: { typed?: boolean; tsconfigRootDir?: strin
         "no-magic-numbers": "off",
         "no-shadow": "off",
         "no-use-before-define": "off",
-        "@typescript-eslint/no-magic-numbers": "warn",
+        "@typescript-eslint/no-magic-numbers": ["warn", { ignore: [0, 1, 2] }],
         "@typescript-eslint/no-shadow": "warn",
         "@typescript-eslint/no-use-before-define": "warn",
         "@typescript-eslint/consistent-type-imports": "error",
@@ -106,7 +107,10 @@ export function createConfig(options: { typed?: boolean; tsconfigRootDir?: strin
     prettierRecommended,
     {
       files,
-      rules: { "prettier/prettier": ["error", prettierOptions, { usePrettierrc: false }] },
+      rules: {
+        "prettier/prettier": ["error", prettierOptions, { usePrettierrc: false }],
+        curly: ["error", "all"],
+      },
     },
     {
       files,
@@ -114,8 +118,8 @@ export function createConfig(options: { typed?: boolean; tsconfigRootDir?: strin
       rules: {
         "@stylistic/padding-line-between-statements": [
           "warn",
-          { blankLine: "always", prev: "*", next: ["function", "class", "if", "switch", "for", "while", "do"] },
-          { blankLine: "always", prev: ["function", "class", "if", "switch", "for", "while", "do"], next: "*" },
+          { blankLine: "always", prev: "*", next: ["function", "class", "if", "switch", "for", "while", "do", "try"] },
+          { blankLine: "always", prev: ["function", "class", "if", "switch", "for", "while", "do", "try"], next: "*" },
           { blankLine: "always", prev: { selector: "SwitchCase[consequent.length>0]" }, next: ["case", "default"] },
           { blankLine: "always", prev: "*", next: "return" },
         ],
