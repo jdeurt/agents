@@ -15,10 +15,22 @@ The upstream [marketplace declaration](https://github.com/anthropics/skills/blob
 lists doc-coauthoring under `example-skills`. Together these support the inference
 that Apache 2.0 applies to this example skill; neither is an explicit per-skill
 license declaration. The source skill has no separate license or copyright notice,
-and the inspected repository root has no LICENSE file. Upstream licensing remains
-ambiguous; this adaptation retains the inferred license rather than claiming an
-explicit upstream grant. The repository’s `THIRD_PARTY_NOTICES.md` concerns
-software and fonts that are not included in this text-only adaptation.
+and the inspected repository root has no LICENSE file. The pinned
+[root tree](https://api.github.com/repos/anthropics/skills/git/trees/dbd4588f9e1033efb41dad4bef2f7947c8993d44)
+contains only `.claude-plugin`, `.gitignore`, `README.md`, `THIRD_PARTY_NOTICES.md`,
+`skills`, `spec`, and `template`. The
+[skill directory](https://api.github.com/repos/anthropics/skills/contents/skills/doc-coauthoring?ref=dbd4588f9e1033efb41dad4bef2f7947c8993d44)
+contains only `SKILL.md`. GitHub's repository license endpoint returned 404 on
+2026-10-19; repository metadata reported `license: null`.
+
+The README's separate-license exceptions name `docx`, `pdf`, `pptx`, and `xlsx`,
+not `doc-coauthoring`. Absence from those exceptions does not itself establish an
+explicit license grant. Upstream licensing therefore remains unconfirmed. The
+bundled Apache 2.0 text records the candidate license; bundling it does not establish
+permission to redistribute or relicense the upstream skill. Keep this adaptation
+in draft review until authoritative upstream licensing scope is established.
+
+The repository’s `THIRD_PARTY_NOTICES.md` concerns software and fonts that are not included in this text-only adaptation.
 
 ## Changes in this version
 
