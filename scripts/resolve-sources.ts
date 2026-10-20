@@ -2,9 +2,23 @@ import { cp, mkdtemp, realpath, rm } from "node:fs/promises";
 import path from "node:path";
 import { syncImports } from "./sync-imports.ts";
 import { tmpdir } from "node:os";
+const PLUGINS = "plugins";
+const ESLINT_CONFIG_TS = "eslint.config.ts";
+const PRETTIER_CONFIG_MJS = "prettier.config.mjs";
+const ESLINT_RULES_TS = "eslint-rules.ts";
+const MARKETPLACE_TOML = "marketplace.toml";
+const IMPORTS_TOML = "imports.toml";
+const AGENTS_SOURCES = "agents-sources-";
 
 async function copySources(root: string, resolved: string) {
-  for (const item of ["plugins", "eslint.config.ts", "prettier.config.mjs", "marketplace.toml", "imports.toml"]) {
+  for (const item of [
+    PLUGINS,
+    ESLINT_CONFIG_TS,
+    PRETTIER_CONFIG_MJS,
+    ESLINT_RULES_TS,
+    MARKETPLACE_TOML,
+    IMPORTS_TOML,
+  ]) {
     await cp(path.join(root, item), path.join(resolved, item), {
       recursive: true,
     });
@@ -12,7 +26,7 @@ async function copySources(root: string, resolved: string) {
 }
 
 export async function withResolvedSources<T>(root: string, use: (resolved: string) => Promise<T>): Promise<T> {
-  const temporaryDirectory = await mkdtemp(path.join(tmpdir(), "agents-sources-"));
+  const temporaryDirectory = await mkdtemp(path.join(tmpdir(), AGENTS_SOURCES));
   const resolved = await realpath(temporaryDirectory);
 
   try {

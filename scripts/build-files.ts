@@ -1,11 +1,12 @@
+import * as values from "./build-files-values.ts";
 import { lstat, readdir, realpath, rmdir, stat } from "node:fs/promises";
 import type { Dirent } from "node:fs";
-import type { Registry } from "./types.ts";
 import path from "node:path";
-const HARNESSES = new Set(["claude", "codex"]);
-const NAME = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
-const VERSION = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/;
+
+export { validateRegistry } from "./build-registry.ts";
+
 const SOURCE_EXCLUSIONS: string[] = [];
+
 export function marketplaceSourceFilter(pluginsRoot: string) {
   const isExcluded = (filename: string) => {
     const relative = path.relative(pluginsRoot, filename).split(path.sep).join("/");
@@ -16,56 +17,71 @@ export function marketplaceSourceFilter(pluginsRoot: string) {
   return async (filename: string) => !isExcluded(filename) && !isExcluded(await realpath(filename));
 }
 
-function requireText(value: unknown, label: string) {
-  if (typeof value !== "string" || !value.trim()) {
-    throw new Error(`${label} must be a non-empty string`);
-  }
-}
-
-function fields(value: unknown, allowed: string[], label: string): asserts value is Record<string, unknown> {
-  if (!value || typeof value !== "object" || Array.isArray(value)) {
-    throw new Error(`${label} must be a table`);
+function requireSafeRelative(relative: string) {
+  if (typeof relative !== "string" || path.isAbsolute(relative) || relative.split(/[\\/]/).includes("..")) {
+    const message = `Unsafe generated path: ${relative}`;
+    throw new Error(message);
   }
 
-  for (const key of Object.keys(value)) {
-    if (!allowed.includes(key)) {
-      throw new Error(`${label}: unknown field ${key}`);
-    }
-  }
+  return relative;
 }
 
 export function inside(root: string, relative: string) {
-  if (typeof relative !== "string" || path.isAbsolute(relative) || relative.split(/[\\/]/).includes("..")) {
-    throw new Error(`Unsafe generated path: ${relative}`);
-  }
-
-  const resolved = path.resolve(root, relative);
+  const resolved = path.resolve(root, requireSafeRelative(relative));
 
   if (resolved === root || !resolved.startsWith(`${root}${path.sep}`)) {
-    throw new Error(`Unsafe generated path: ${relative}`);
+    const message = `Unsafe generated path: ${relative}`;
+    throw new Error(message);
   }
 
   return resolved;
 }
 
-async function readDirectory(directory: string, linksWithin: string | undefined, parents: Set<string>) {
+async function checkedDirectoryPath(directory: string, linksWithin: string | undefined) {
   const info = await lstat(directory);
 
   if (!linksWithin && info.isSymbolicLink()) {
-    throw new Error(`Symbolic links are not supported: ${directory}`);
+    const message6 = `Symbolic links are not supported: ${directory}`;
+    throw new Error(message6);
   }
 
-  const resolved = await realpath(directory);
+  return realpath(directory);
+}
+
+async function readDirectory(directory: string, linksWithin: string | undefined, parents: Set<string>) {
+  const resolved = await checkedDirectoryPath(directory, linksWithin);
 
   if (linksWithin && resolved !== linksWithin && !resolved.startsWith(`${linksWithin}${path.sep}`)) {
-    throw new Error(`Source resource leaves the plugin sources: ${directory}`);
+    const message7 = `Source resource leaves the plugin sources: ${directory}`;
+    throw new Error(message7);
   }
 
   if (parents.has(resolved)) {
-    throw new Error(`Source resources contain a symlink cycle: ${directory}`);
+    const message8 = `Source resources contain a symlink cycle: ${directory}`;
+    throw new Error(message8);
   }
 
   return { entries: await readdir(directory, { withFileTypes: true }), parents: new Set([...parents, resolved]) };
+}
+
+async function containedLinkPath(filename: string, linksWithin: string) {
+  const resolved = await realpath(filename);
+
+  if (!resolved.startsWith(`${linksWithin}${path.sep}`)) {
+    const message = `Source resource leaves the plugin sources: ${filename}`;
+    throw new Error(message);
+  }
+
+  return resolved;
+}
+
+async function checkedLinkPath(filename: string, linksWithin: string | undefined) {
+  if (!linksWithin) {
+    const message = `Symbolic links are not supported: ${filename}`;
+    throw new Error(message);
+  }
+
+  return containedLinkPath(filename, linksWithin);
 }
 
 export async function filesIn(
@@ -75,61 +91,73 @@ export async function filesIn(
   parents = new Set<string>(),
   shouldInclude?: (filename: string) => Promise<boolean>
 ): Promise<string[]> {
+  async function scannedFiles(
+    scanDirectory: string,
+    scanPrefix: string,
+    scanLinksWithin: string | undefined,
+    scanShouldInclude: ((filename: string) => Promise<boolean>) | undefined,
+    scanned: Awaited<ReturnType<typeof readDirectory>>
+  ): Promise<string[]> {
+    const files: string[] = [];
+
+    const entries = scanned.entries.toSorted((a, b) => a.name.localeCompare(b.name));
+
+    for (const entry of entries) {
+      const relative = path.posix.join(scanPrefix, entry.name);
+      const filename = path.join(scanDirectory, entry.name);
+
+      if (scanShouldInclude && !(await scanShouldInclude(filename))) {
+        continue;
+      }
+
+      let info: Pick<typeof entry, "isDirectory" | "isFile"> = entry;
+
+      if (entry.isSymbolicLink()) {
+        const resolved = await checkedLinkPath(filename, scanLinksWithin);
+
+        info = await stat(resolved);
+      }
+
+      if (info.isDirectory()) {
+        files.push(...(await filesIn(filename, relative, scanLinksWithin, scanned.parents, scanShouldInclude)));
+      } else if (info.isFile()) {
+        files.push(relative);
+      }
+    }
+
+    return files;
+  }
+
   let scanned: Awaited<ReturnType<typeof readDirectory>>;
 
   try {
     scanned = await readDirectory(directory, linksWithin, parents);
   } catch (error) {
-    if (error instanceof Error && "code" in error && error.code === "ENOENT") {
+    if (
+      error instanceof Error &&
+      Reflect.has(error, values.CODE) &&
+      Reflect.get(error, values.CODE) === values.FILE_NOT_FOUND
+    ) {
       return [];
     }
 
     throw error;
   }
 
-  const files: string[] = [];
+  return scannedFiles(directory, prefix, linksWithin, shouldInclude, scanned);
+}
 
-  const entries = scanned.entries.toSorted((a, b) => a.name.localeCompare(b.name));
+function symbolicLinkError(directory: string) {
+  const message = `Symbolic links are not supported: ${directory}`;
 
-  for (const entry of entries) {
-    const relative = path.posix.join(prefix, entry.name);
-    const filename = path.join(directory, entry.name);
-
-    if (shouldInclude && !(await shouldInclude(filename))) {
-      continue;
-    }
-
-    let info: Pick<typeof entry, "isDirectory" | "isFile"> = entry;
-
-    if (entry.isSymbolicLink()) {
-      if (!linksWithin) {
-        throw new Error(`Symbolic links are not supported: ${filename}`);
-      }
-
-      const resolved = await realpath(filename);
-
-      if (!resolved.startsWith(`${linksWithin}${path.sep}`)) {
-        throw new Error(`Source resource leaves the plugin sources: ${filename}`);
-      }
-
-      info = await stat(resolved);
-    }
-
-    if (info.isDirectory()) {
-      files.push(...(await filesIn(filename, relative, linksWithin, scanned.parents, shouldInclude)));
-    } else if (info.isFile()) {
-      files.push(relative);
-    }
-  }
-
-  return files;
+  return new Error(message);
 }
 
 async function requireNonSymlink(directory: string) {
   const info = await lstat(directory);
 
   if (info.isSymbolicLink()) {
-    throw new Error(`Symbolic links are not supported: ${directory}`);
+    throw symbolicLinkError(directory);
   }
 }
 
@@ -140,12 +168,24 @@ export async function checkOutputParents(root: string, relative: string) {
     try {
       await requireNonSymlink(directory);
     } catch (error) {
-      if (!(error instanceof Error && "code" in error && error.code === "ENOENT")) {
+      if (!(
+        error instanceof Error &&
+        Reflect.has(error, values.CODE) &&
+        Reflect.get(error, values.CODE) === values.FILE_NOT_FOUND
+      )) {
         throw error;
       }
     }
 
     directory = path.dirname(directory);
+  }
+}
+
+async function removeEmptyDirectory(directory: string) {
+  const resolvedValue3 = await readdir(directory);
+
+  if (resolvedValue3.length === 0) {
+    await rmdir(directory);
   }
 }
 
@@ -155,7 +195,11 @@ export async function pruneEmptyDirectories(directory: string): Promise<void> {
   try {
     entries = await readdir(directory, { withFileTypes: true });
   } catch (error) {
-    if (error instanceof Error && "code" in error && error.code === "ENOENT") {
+    if (
+      error instanceof Error &&
+      Reflect.has(error, values.CODE) &&
+      Reflect.get(error, values.CODE) === values.FILE_NOT_FOUND
+    ) {
       return;
     }
 
@@ -164,7 +208,8 @@ export async function pruneEmptyDirectories(directory: string): Promise<void> {
 
   for (const entry of entries) {
     if (entry.isSymbolicLink()) {
-      throw new Error(`Symbolic links are not supported: ${path.join(directory, entry.name)}`);
+      const message12 = `Symbolic links are not supported: ${path.join(directory, entry.name)}`;
+      throw new Error(message12);
     }
 
     if (entry.isDirectory()) {
@@ -172,98 +217,5 @@ export async function pruneEmptyDirectories(directory: string): Promise<void> {
     }
   }
 
-  const resolvedValue3 = await readdir(directory);
-
-  if (resolvedValue3.length === 0) {
-    await rmdir(directory);
-  }
-}
-
-export function validateRegistry(registry: Registry) {
-  fields(registry, ["marketplace", "plugins"], "registry");
-  fields(registry.marketplace, ["name", "display_name", "owner", "description"], "marketplace");
-  const marketplace = registry.marketplace;
-
-  for (const key of ["name", "owner", "description"]) {
-    requireText(marketplace[key], `marketplace.${key}`);
-  }
-
-  if (marketplace.display_name !== undefined) {
-    requireText(marketplace.display_name, "marketplace.display_name");
-  }
-
-  if (!NAME.test(marketplace.name)) {
-    throw new Error("marketplace.name must use lowercase kebab-case");
-  }
-
-  if (!Array.isArray(registry.plugins)) {
-    throw new TypeError("plugins must be an array");
-  }
-
-  const names = new Set();
-
-  for (const plugin of registry.plugins) {
-    fields(
-      plugin,
-      [
-        "name",
-        "version",
-        "description",
-        "harnesses",
-        "category",
-        "authentication",
-        "soubi",
-        "native",
-        "author",
-        "license",
-      ],
-      "plugin"
-    );
-
-    for (const key of ["name", "version", "description", "category"]) {
-      requireText(plugin[key], `plugin.${key}`);
-    }
-
-    if (!NAME.test(plugin.name)) {
-      throw new Error(`Invalid plugin name: ${plugin.name}`);
-    }
-
-    if (names.has(plugin.name)) {
-      throw new Error(`Duplicate plugin: ${plugin.name}`);
-    }
-
-    names.add(plugin.name);
-
-    if (!VERSION.test(plugin.version)) {
-      throw new Error(`Invalid version for ${plugin.name}: ${plugin.version}`);
-    }
-
-    if (plugin.authentication !== undefined && !["on-install", "on-use"].includes(plugin.authentication)) {
-      throw new Error(`${plugin.name}: authentication must be on-install or on-use`);
-    }
-
-    if (
-      !Array.isArray(plugin.harnesses) ||
-      plugin.harnesses.length === 0 ||
-      new Set(plugin.harnesses).size !== plugin.harnesses.length
-    ) {
-      throw new Error(`${plugin.name}: harnesses must be a non-empty array without duplicates`);
-    }
-
-    for (const harness of plugin.harnesses) {
-      if (!HARNESSES.has(harness)) {
-        throw new Error(`${plugin.name}: unsupported harness ${harness}`);
-      }
-    }
-
-    for (const key of ["author", "license"]) {
-      if (plugin[key] !== undefined) {
-        requireText(plugin[key], `plugin.${key}`);
-      }
-    }
-
-    if (plugin.soubi) {
-      fields(plugin.soubi, ["mcpServers", "assets", "harnessDefaults"], `${plugin.name}.soubi`);
-    }
-  }
+  await removeEmptyDirectory(directory);
 }

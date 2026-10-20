@@ -6,12 +6,55 @@ import assert from "node:assert/strict";
 import { buildMarketplace } from "./build-marketplace.ts";
 import path from "node:path";
 import { test } from "bun:test";
-
-const INTEGRATION_TIMEOUT_MS = 30_000;
 import { tmpdir } from "node:os";
 import { validateSkillFrontmatter } from "./file-validation.ts";
 import { withImportFixture } from "./import-fixture.ts";
 
+const INTEGRATION_TIMEOUT_MS = 30_000;
+const names = {
+  packageTest: "packages both harnesses, retains portable skills and imports, and detects tampering",
+  hashTest: "rejects import traversal and symlinks; hashes executable mode and content",
+  packagePrefix: "agents-test-",
+  hashPrefix: "agents-hash-",
+  utf8: "utf8",
+  local: "local",
+  mobbinUrl: "https://api.mobbin.com/mcp",
+  bunUrl: "https://bun.com/docs/mcp",
+  mcpReference: "./.mcp.json",
+  corrupted: "corrupted",
+  stale: "stale",
+  original: "original",
+  changed: "changed",
+  missing: "ENOENT",
+} as const;
+const files = {
+  skillGlob: "dist/*/plugins/*/skills/*/SKILL.md",
+  codexCatalog: ".agents/plugins/marketplace.json",
+  claudeCatalog: ".claude-plugin/marketplace.json",
+  codexPrefix: "./dist/codex/plugins/",
+  styleReference: "dist/codex/plugins/writing/skills/writing-clearly-and-concisely/elements-of-style.md",
+  styleSkill: "dist/claude/plugins/writing/skills/writing-clearly-and-concisely/SKILL.md",
+  mobbin: "dist/codex/plugins/design/.mcp.json",
+  engineering: "dist/codex/plugins/engineering/.codex-plugin/plugin.json",
+  codexMcp: "dist/codex/plugins/engineering/.mcp.json",
+  claudeMcp: "dist/claude/plugins/engineering/.mcp.json",
+  codexShadcn: "dist/codex/plugins/design/skills/shadcn/SKILL.md",
+  claudeShadcn: "dist/claude/plugins/design/skills/shadcn/SKILL.md",
+  upstreamLicense: "dist/codex/plugins/design/skills/shadcn/UPSTREAM-LICENSE",
+  codeReview: "skills/code-review/SKILL.md",
+  jscpdReference: "skills/code-review/references/jscpd.md",
+  stale: "dist/stale.txt",
+  hashDirectory: "skill",
+  hashSkill: "SKILL.md",
+  escape: "escape",
+  outside: "../outside",
+  safe: "/safe",
+};
+const harnesses = ["codex", "claude"] as const;
+const importedSkills = ["jscpd", "dry-refactoring", "codebase-refactoring", "compare-codebases", "code-migration"];
+const pluginNames = ["jdeurt-design", "jdeurt-engineering", "jdeurt-writing", "jdeurt-meta", "jdeurt-cloudflare"];
+const configFiles = ["eslint.config.ts", "prettier.config.mjs", "eslint-rules.ts"];
+const invalidImports = ["../outside", "/absolute", ".git/config"];
 const portablePluginSchema = z.object({
   name: z.string(),
   source: z.object({ source: z.string(), path: z.string() }),
@@ -19,121 +62,116 @@ const portablePluginSchema = z.object({
 const portableMarketplaceSchema = z.object({ plugins: z.array(portablePluginSchema) });
 const namedPluginSchema = z.object({ name: z.string() });
 const namedMarketplaceSchema = z.object({ plugins: z.array(namedPluginSchema) });
-const dependenciesSchema = z.record(z.string(), z.string());
-const hookDependenciesSchema = z.object({ dependencies: dependenciesSchema });
 const mobbinMcpSchema = z.object({ mobbin: z.object({ url: z.string() }) });
 const bunMcpSchema = z.object({ bun: z.object({ url: z.string() }) });
 const claudeMcpSchema = z.object({ mcpServers: bunMcpSchema });
+const engineeringSchema = z.object({ mcpServers: z.string() });
+const harnessSchema = z.enum(harnesses);
 
-async function assertImportedJscpdSkills(output: string) {
-  for (const name of ["jscpd", "dry-refactoring", "codebase-refactoring", "compare-codebases", "code-migration"]) {
-    for (const host of ["codex", "claude"]) {
-      await readFile(path.join(output, `dist/${host}/plugins/engineering/skills/${name}/SKILL.md`));
+async function json<T>(output: string, name: string, schema: z.ZodMiniType<T>): Promise<T> {
+  const contents = await readFile(path.join(output, name), names.utf8);
+
+  return schema.parse(JSON.parse(contents));
+}
+
+async function assertImportedSkills(output: string) {
+  for (const host of harnesses) {
+    const baseName = `dist/${host}/plugins/engineering`;
+    const base = path.join(output, baseName);
+    await readFile(path.join(base, files.codeReview));
+    await readFile(path.join(base, files.jscpdReference));
+
+    for (const name of importedSkills) {
+      const imported = `skills/${name}/SKILL.md`;
+      await readFile(path.join(base, imported));
     }
   }
 }
 
-async function assertCodeReviewSkill(output: string) {
-  for (const host of ["codex", "claude"]) {
-    const base = path.join(output, `dist/${host}/plugins/engineering`);
-    await readFile(path.join(base, "skills/code-review/SKILL.md"));
-    await readFile(path.join(base, "skills/code-review/references/jscpd.md"));
+async function assertCatalogs(output: string) {
+  const codex = await json(output, files.codexCatalog, portableMarketplaceSchema);
+  const claude = await json(output, files.claudeCatalog, namedMarketplaceSchema);
+
+  assert.deepEqual(
+    codex.plugins.map((plugin) => plugin.name),
+    pluginNames
+  );
+  assert.ok(
+    codex.plugins.every(
+      (plugin) => plugin.source.source === names.local && plugin.source.path.startsWith(files.codexPrefix)
+    )
+  );
+  assert.deepEqual(
+    claude.plugins.map((plugin) => plugin.name),
+    pluginNames
+  );
+}
+
+async function assertPluginMetadata(output: string) {
+  const mobbin = await json(output, files.mobbin, mobbinMcpSchema);
+  const engineering = await json(output, files.engineering, engineeringSchema);
+  const bunMcp = await json(output, files.codexMcp, bunMcpSchema);
+  const claudeMcp = await json(output, files.claudeMcp, claudeMcpSchema);
+
+  assert.equal(mobbin.mobbin.url, names.mobbinUrl);
+  assert.equal(engineering.mcpServers, names.mcpReference);
+  assert.equal(bunMcp.bun.url, names.bunUrl);
+  assert.equal(claudeMcp.mcpServers.bun.url, names.bunUrl);
+}
+
+async function assertBundledConfiguration(output: string) {
+  for (const name of configFiles) {
+    const source = await readFile(path.join(process.cwd(), name), names.utf8);
+
+    for (const host of harnesses) {
+      const bundled = `dist/${host}/plugins/engineering/skills/formatting-linting/references/javascript/${name}`;
+      const published = await readFile(path.join(output, bundled), names.utf8);
+      assert.equal(published, source);
+    }
   }
 }
 
+async function assertBuiltContent(output: string) {
+  const skillFiles = new Bun.Glob(files.skillGlob).scan(output);
+
+  for await (const file of skillFiles) {
+    await validateSkillFrontmatter(path.join(output, file), {
+      harness: harnessSchema.parse(file.split("/", 2)[1]),
+    });
+  }
+
+  await assertCatalogs(output);
+  await assertPluginMetadata(output);
+  await assertBundledConfiguration(output);
+  await assertImportedSkills(output);
+  await readFile(path.join(output, files.styleReference));
+  await readFile(path.join(output, files.styleSkill));
+  assert.doesNotMatch(await readFile(path.join(output, files.codexShadcn), names.utf8), /^allowed-tools:/m);
+  assert.match(await readFile(path.join(output, files.claudeShadcn), names.utf8), /^allowed-tools:/m);
+  await readFile(path.join(output, files.upstreamLicense));
+}
+
+async function assertTampering(output: string) {
+  await buildMarketplace({ output, check: true });
+  await writeFile(path.join(output, files.codexShadcn), names.corrupted);
+  await assert.rejects(buildMarketplace({ output, check: true }), /stale/);
+  await buildMarketplace({ output });
+  await writeFile(path.join(output, files.stale), names.stale);
+  await buildMarketplace({ output });
+  await assert.rejects(readFile(path.join(output, files.stale)), { code: names.missing });
+}
+
 test(
-  "packages both harnesses, retains portable skills and imports, and detects tampering",
+  names.packageTest,
   async () =>
     withImportFixture(async () => {
-      const output = await mkdtemp(path.join(tmpdir(), "agents-test-"));
-
-      async function assertMarketplaceBuild() {
-        await syncImports({ check: true });
-        await buildMarketplace({ output });
-        const json = async <T>(name: string, schema: z.ZodMiniType<T>): Promise<T> => {
-          const contents = await readFile(path.join(output, name), "utf8");
-
-          return schema.parse(JSON.parse(contents));
-        };
-        const skillFiles = new Bun.Glob("dist/*/plugins/*/skills/*/SKILL.md").scan(output);
-
-        for await (const file of skillFiles) {
-          await validateSkillFrontmatter(path.join(output, file), {
-            harness: z.enum(["claude", "codex"]).parse(file.split("/", 2)[1]),
-          });
-        }
-
-        const codex = await json(".agents/plugins/marketplace.json", portableMarketplaceSchema);
-        assert.deepEqual(
-          codex.plugins.map((p) => p.name),
-          ["jdeurt-design", "jdeurt-engineering", "jdeurt-writing", "jdeurt-meta", "jdeurt-cloudflare"]
-        );
-        assert.ok(
-          codex.plugins.every((p) => p.source.source === "local" && p.source.path.startsWith("./dist/codex/plugins/"))
-        );
-        const resolvedValue1 = await json(".claude-plugin/marketplace.json", namedMarketplaceSchema);
-        assert.deepEqual(
-          resolvedValue1.plugins.map((p) => p.name),
-          ["jdeurt-design", "jdeurt-engineering", "jdeurt-writing", "jdeurt-meta", "jdeurt-cloudflare"]
-        );
-        await readFile(
-          path.join(output, "dist/codex/plugins/writing/skills/writing-clearly-and-concisely/elements-of-style.md")
-        );
-        await readFile(path.join(output, "dist/claude/plugins/writing/skills/writing-clearly-and-concisely/SKILL.md"));
-        const resolvedValue4 = await json("dist/codex/plugins/design/.mcp.json", mobbinMcpSchema);
-        assert.equal(resolvedValue4.mobbin.url, "https://api.mobbin.com/mcp");
-        const engineering = await json(
-          "dist/codex/plugins/engineering/.codex-plugin/plugin.json",
-          z.object({ mcpServers: z.string() })
-        );
-        assert.equal(engineering.mcpServers, "./.mcp.json");
-        const hookDependencies = await json(
-          "dist/codex/plugins/engineering/hook-deps/package.json",
-          hookDependenciesSchema
-        );
-        assert.equal(hookDependencies.dependencies["eslint-plugin-unicorn"], "78.0.0");
-        assert.equal(
-          await Bun.file(path.join(output, "dist/codex/plugins/engineering/hook-deps/bun.lock")).exists(),
-          false
-        );
-
-        for (const name of ["eslint.config.ts", "prettier.config.mjs"]) {
-          const source = await readFile(path.join(process.cwd(), name), "utf8");
-
-          for (const host of ["codex", "claude"]) {
-            const published = await readFile(path.join(output, `dist/${host}/plugins/engineering/${name}`), "utf8");
-            assert.equal(published, source);
-          }
-        }
-
-        const bunMcp = await json("dist/codex/plugins/engineering/.mcp.json", bunMcpSchema);
-        assert.equal(bunMcp.bun.url, "https://bun.com/docs/mcp");
-        const claudeMcp = await json("dist/claude/plugins/engineering/.mcp.json", claudeMcpSchema);
-        assert.equal(claudeMcp.mcpServers.bun.url, "https://bun.com/docs/mcp");
-
-        await assertImportedJscpdSkills(output);
-        await assertCodeReviewSkill(output);
-
-        const skill = "dist/codex/plugins/design/skills/shadcn/SKILL.md";
-        assert.doesNotMatch(await readFile(path.join(output, skill), "utf8"), /^allowed-tools:/m);
-        assert.match(
-          await readFile(path.join(output, "dist/claude/plugins/design/skills/shadcn/SKILL.md"), "utf8"),
-          /^allowed-tools:/m
-        );
-        await readFile(path.join(output, "dist/codex/plugins/design/skills/shadcn/UPSTREAM-LICENSE"));
-        await buildMarketplace({ output, check: true });
-        await writeFile(path.join(output, skill), "corrupted");
-        await assert.rejects(buildMarketplace({ output, check: true }), /stale/);
-        await buildMarketplace({ output });
-        await writeFile(path.join(output, "dist/stale.txt"), "stale");
-        await buildMarketplace({ output });
-        await assert.rejects(readFile(path.join(output, "dist/stale.txt")), {
-          code: "ENOENT",
-        });
-      }
+      const output = await mkdtemp(path.join(tmpdir(), names.packagePrefix));
 
       try {
-        await assertMarketplaceBuild();
+        await syncImports({ check: true });
+        await buildMarketplace({ output });
+        await assertBuiltContent(output);
+        await assertTampering(output);
       } finally {
         await rm(output, { recursive: true, force: true });
       }
@@ -141,21 +179,30 @@ test(
   INTEGRATION_TIMEOUT_MS
 );
 
-test("rejects import traversal and symlinks; hashes executable mode and content", async () => {
-  for (const value of ["../outside", "/absolute", ".git/config"]) {
-    assert.throws(() => inside("/safe", value));
-  }
+async function assertContentHash(root: string) {
+  const before = await digest(root);
 
-  const root = await mkdtemp(path.join(tmpdir(), "agents-hash-"));
+  await writeFile(path.join(root, files.hashSkill), names.changed);
+  assert.notEqual(await digest(root), before);
+  await symlink(files.outside, path.join(root, files.escape));
+  await assert.rejects(digest(root), /symlink/);
+}
+
+function assertImportBoundaries() {
+  for (const value of invalidImports) {
+    assert.throws(() => inside(files.safe, value));
+  }
+}
+
+test(names.hashTest, async () => {
+  const root = await mkdtemp(path.join(tmpdir(), names.hashPrefix));
+  const skillDirectory = path.join(root, files.hashDirectory);
 
   try {
-    await mkdir(path.join(root, "skill"));
-    await writeFile(path.join(root, "skill", "SKILL.md"), "original");
-    const before = await digest(path.join(root, "skill"));
-    await writeFile(path.join(root, "skill", "SKILL.md"), "changed");
-    assert.notEqual(await digest(path.join(root, "skill")), before);
-    await symlink("../outside", path.join(root, "skill", "escape"));
-    await assert.rejects(digest(path.join(root, "skill")), /symlink/);
+    assertImportBoundaries();
+    await mkdir(skillDirectory);
+    await writeFile(path.join(skillDirectory, files.hashSkill), names.original);
+    await assertContentHash(skillDirectory);
   } finally {
     await rm(root, { recursive: true, force: true });
   }

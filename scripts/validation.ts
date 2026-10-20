@@ -1,15 +1,26 @@
 import * as z from "zod/mini";
 import type { Registry } from "./types.ts";
 import { validateRegistry } from "./build-files.ts";
+const ALL = "all";
+const SKILL = "skill";
+const PLUGIN = "plugin";
+const HTTP = "http";
+const DROP = "drop";
+const DEGRADE = "degrade";
+const FAIL = "fail";
+const CLAUDE = "claude";
+const CODEX = "codex";
+const ON_INSTALL = "on-install";
+const ON_USE = "on-use";
 
 export const jsonRecord = z.record(z.string(), z.unknown());
 const stringList = z.array(z.string());
 const stringRecord = z.record(z.string(), z.string());
-const importScripts = z.union([z.literal("all"), stringList]);
+const importScripts = z.union([z.literal(ALL), stringList]);
 export const externalImport = z.strictObject({
   name: z.string(),
   repository: z.string(),
-  kind: z.enum(["skill", "plugin"]),
+  kind: z.enum([SKILL, PLUGIN]),
   ref: z.optional(z.string()),
   path: z.string(),
   destination: z.string(),
@@ -30,15 +41,15 @@ const commandServer = z.strictObject({
   cwd: z.optional(z.string()),
 });
 const httpServer = z.strictObject({
-  transport: z.literal("http"),
+  transport: z.literal(HTTP),
   url: z.string(),
   headers: z.optional(stringRecord),
 });
 const server = z.union([commandServer, httpServer]);
 const servers = z.record(z.string(), server);
-const unsupportedPolicy = z.enum(["drop", "degrade", "fail"]);
+const unsupportedPolicy = z.enum([DROP, DEGRADE, FAIL]);
 const harnessDefault = z.looseObject({ onUnsupported: z.optional(unsupportedPolicy) });
-const harnessDefaults = z.partialRecord(z.enum(["claude", "codex"]), harnessDefault);
+const harnessDefaults = z.partialRecord(z.enum([CLAUDE, CODEX]), harnessDefault);
 const soubi = z.strictObject({
   mcpServers: z.optional(servers),
   assets: z.optional(stringList),
@@ -49,8 +60,8 @@ const plugin = z.strictObject({
   version: z.string(),
   description: z.string(),
   category: z.string(),
-  harnesses: z.array(z.enum(["claude", "codex"])),
-  authentication: z.optional(z.enum(["on-install", "on-use"])),
+  harnesses: z.array(z.enum([CLAUDE, CODEX])),
+  authentication: z.optional(z.enum([ON_INSTALL, ON_USE])),
   native: z.optional(z.boolean()),
   author: z.optional(z.string()),
   license: z.optional(z.string()),

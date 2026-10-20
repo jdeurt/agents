@@ -11,7 +11,26 @@ import { parseRegistry } from "./validation.ts";
 import path from "node:path";
 import { tmpdir } from "node:os";
 import { withResolvedSources } from "./resolve-sources.ts";
-const ROOT = fileURLToPath(new URL("../", import.meta.url));
+const TEXT = "../";
+const CODE = "code";
+const FILE_NOT_FOUND = "ENOENT";
+const DIST = "dist";
+const MARKETPLACE_BUILD = ".marketplace-build";
+const MARKETPLACE_TOML = "marketplace.toml";
+const UTF8 = "utf8";
+const AGENTS_MARKETPLACE = "agents-marketplace-";
+const PACKAGE_JSON = "package.json";
+const MODULE = "module";
+const NODE_MODULES = "node_modules";
+const DIR = "dir";
+const CHECK = "--check";
+const OUTPUT = "--output";
+const USAGE_BUN_SCRIPTS_BUILD_MARKETPLACE_TS_CHECK =
+  "Usage: bun scripts/build-marketplace.ts [--check] [--output directory]";
+const CHECKED = "Checked";
+const BUILT = "Built";
+
+const ROOT = fileURLToPath(new URL(TEXT, import.meta.url));
 const json = (value: unknown) => `${JSON.stringify(value, undefined, 2)}\n`;
 
 async function recordDifference(output: string, file: string, value: BuiltFile, differences: string[]) {
@@ -31,7 +50,7 @@ async function compareBuild(output: string, expected: Map<string, BuiltFile>, st
     try {
       await recordDifference(output, file, value, differences);
     } catch (error) {
-      if (!(error instanceof Error && "code" in error && error.code === "ENOENT")) {
+      if (!(error instanceof Error && Reflect.has(error, CODE) && Reflect.get(error, CODE) === FILE_NOT_FOUND)) {
         throw error;
       }
 
@@ -54,42 +73,55 @@ async function writeBuild(output: string, expected: Map<string, BuiltFile>, stal
     await writeFile(filename, value.contents, { mode: value.mode });
   }
 
-  await pruneEmptyDirectories(path.join(output, "dist"));
+  await pruneEmptyDirectories(path.join(output, DIST));
 }
 
-export async function buildMarketplace({
-  root = ROOT,
-  check = false,
-  output = path.join(root, ".marketplace-build"),
-  resolved = false,
-} = {}): Promise<{ plugins: number; files: number }> {
-  if (!resolved) {
-    return withResolvedSources(root, (source) =>
-      buildMarketplace({
-        root: source,
-        check,
-        output,
-        resolved: true,
-      })
-    );
-  }
-
-  root = await realpath(path.resolve(root));
-  output = path.resolve(output);
-
-  if (!check) {
+async function prepareOutput(output: string, shouldCheck: boolean) {
+  if (!shouldCheck) {
     await mkdir(output, { recursive: true });
   }
 
-  const registryText = await readFile(path.join(root, "marketplace.toml"), "utf8");
+  return output;
+}
+
+async function finishBuild(
+  output: string,
+  shouldCheck: boolean,
+  expected: Map<string, BuiltFile>,
+  pluginCount: number
+) {
+  const actual = await filesIn(path.join(output, DIST), DIST);
+  const stale = actual.filter((file) => !expected.has(file));
+
+  for (const file of expected.keys()) {
+    await checkOutputParents(output, file);
+  }
+
+  if (shouldCheck) {
+    const differences = await compareBuild(output, expected, stale);
+
+    if (differences.length > 0) {
+      const message2 = `Generated files are stale. Run bun run build:\n${differences.join("\n")}`;
+      throw new Error(message2);
+    }
+  } else {
+    await writeBuild(output, expected, stale);
+  }
+
+  return { plugins: pluginCount, files: expected.size };
+}
+
+async function buildResolvedMarketplace(root: string, output: string, shouldCheck: boolean) {
+  const preparedOutput = await prepareOutput(output, shouldCheck);
+  const registryText = await readFile(path.join(root, MARKETPLACE_TOML), UTF8);
   const registry = parseRegistry(TOML.parse(registryText));
   const expected = new Map<string, BuiltFile>();
-  const temporaryDirectory = await mkdtemp(path.join(tmpdir(), "agents-marketplace-"));
+  const temporaryDirectory = await mkdtemp(path.join(tmpdir(), AGENTS_MARKETPLACE));
   const staging = await realpath(temporaryDirectory);
 
   async function compilePlugins() {
-    await writeFile(path.join(staging, "package.json"), json({ type: "module" }));
-    await symlink(path.join(ROOT, "node_modules"), path.join(staging, "node_modules"), "dir");
+    await writeFile(path.join(staging, PACKAGE_JSON), json({ type: MODULE }));
+    await symlink(path.join(ROOT, NODE_MODULES), path.join(staging, NODE_MODULES), DIR);
 
     for (const plugin of registry.plugins) {
       const compiled = await compilePlugin(root, plugin, registry.marketplace.owner, staging);
@@ -110,38 +142,41 @@ export async function buildMarketplace({
     expected.set(file, value);
   }
 
-  const actual = await filesIn(path.join(output, "dist"), "dist");
-  const stale = actual.filter((file) => !expected.has(file));
+  return finishBuild(preparedOutput, shouldCheck, expected, registry.plugins.length);
+}
 
-  for (const file of expected.keys()) {
-    await checkOutputParents(output, file);
+export async function buildMarketplace({
+  root = ROOT,
+  check = false,
+  output = path.join(root, MARKETPLACE_BUILD),
+  resolved = false,
+} = {}): Promise<{ plugins: number; files: number }> {
+  if (!resolved) {
+    return withResolvedSources(root, (source) =>
+      buildMarketplace({
+        root: source,
+        check,
+        output,
+        resolved: true,
+      })
+    );
   }
 
-  if (check) {
-    const differences = await compareBuild(output, expected, stale);
-
-    if (differences.length > 0) {
-      throw new Error(`Generated files are stale. Run bun run build:\n${differences.join("\n")}`);
-    }
-  } else {
-    await writeBuild(output, expected, stale);
-  }
-
-  return { plugins: registry.plugins.length, files: expected.size };
+  return buildResolvedMarketplace(await realpath(path.resolve(root)), path.resolve(output), check);
 }
 
 function parseOptions(args: string[]) {
-  const options = { check: false, output: path.join(ROOT, ".marketplace-build") };
+  const options = { check: false, output: path.join(ROOT, MARKETPLACE_BUILD) };
 
   for (let i = 0; i < args.length; i++) {
     const next = args[i + 1];
 
-    if (args[i] === "--check") {
+    if (args[i] === CHECK) {
       options.check = true;
-    } else if (next && args[i] === "--output" && !next.startsWith("--")) {
+    } else if (next && args[i] === OUTPUT && !next.startsWith("--")) {
       options.output = path.resolve(args[++i]);
     } else {
-      throw new Error("Usage: bun scripts/build-marketplace.ts [--check] [--output directory]");
+      throw new Error(USAGE_BUN_SCRIPTS_BUILD_MARKETPLACE_TS_CHECK);
     }
   }
 
@@ -151,9 +186,8 @@ function parseOptions(args: string[]) {
 async function main() {
   const options = parseOptions(process.argv.slice(2));
   const result = await buildMarketplace(options);
-  console.log(
-    `${options.check ? "Checked" : "Built"} ${String(result.plugins)} plugin(s), ${String(result.files)} generated files.`
-  );
+  const text = `${options.check ? CHECKED : BUILT} ${String(result.plugins)} plugin(s), ${String(result.files)} generated files.`;
+  console.log(text);
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {

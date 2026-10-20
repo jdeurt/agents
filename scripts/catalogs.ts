@@ -1,4 +1,11 @@
 import type { BuiltFile, Plugin, Registry } from "./types.ts";
+const CLAUDE = "claude";
+const LOCAL = "local";
+const INSTALLATION_AVAILABLE = "AVAILABLE";
+const AUTHENTICATE_ON_USE = "on-use";
+const AUTHENTICATION_ON_USE = "ON_USE";
+const AUTHENTICATION_ON_INSTALL = "ON_INSTALL";
+
 const HARNESSES = ["claude", "codex"] as const;
 const CATALOGS = {
   claude: ".claude-plugin/marketplace.json",
@@ -11,36 +18,42 @@ export function catalogs(registry: Registry) {
 
   for (const harness of HARNESSES) {
     const plugins = registry.plugins.filter((plugin) => plugin.harnesses.includes(harness));
-    const source = (plugin: Plugin) =>
-      harness === "claude"
-        ? `./dist/claude/plugins/${plugin.name}`
-        : { source: "local", path: `./dist/codex/plugins/${plugin.name}` };
+    const source = (plugin: Plugin) => {
+      const directory = `./dist/${harness}/plugins/${plugin.name}`;
+
+      return harness === CLAUDE ? directory : { source: LOCAL, path: directory };
+    };
     const catalog =
-      harness === "claude"
+      harness === CLAUDE
         ? {
             name: marketplace.name,
             owner: { name: marketplace.owner },
             metadata: { description: marketplace.description },
-            plugins: plugins.map((plugin) => ({
-              name: `jdeurt-${plugin.name}`,
-              source: source(plugin),
-              description: plugin.description,
-            })),
+            plugins: plugins.map((plugin) => {
+              const name = `jdeurt-${plugin.name}`;
+
+              return { name, source: source(plugin), description: plugin.description };
+            }),
           }
         : {
             name: marketplace.name,
             interface: {
               displayName: marketplace.display_name ?? marketplace.owner,
             },
-            plugins: plugins.map((plugin) => ({
-              name: `jdeurt-${plugin.name}`,
-              source: source(plugin),
-              policy: {
-                installation: "AVAILABLE",
-                authentication: plugin.authentication === "on-use" ? "ON_USE" : "ON_INSTALL",
-              },
-              category: plugin.category,
-            })),
+            plugins: plugins.map((plugin) => {
+              const name = `jdeurt-${plugin.name}`;
+
+              return {
+                name,
+                source: source(plugin),
+                policy: {
+                  installation: INSTALLATION_AVAILABLE,
+                  authentication:
+                    plugin.authentication === AUTHENTICATE_ON_USE ? AUTHENTICATION_ON_USE : AUTHENTICATION_ON_INSTALL,
+                },
+                category: plugin.category,
+              };
+            }),
           };
     expected.set(CATALOGS[harness], {
       contents: Buffer.from(json(catalog)),
