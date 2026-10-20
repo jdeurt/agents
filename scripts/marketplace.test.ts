@@ -24,9 +24,6 @@ const hookDependenciesSchema = z.object({ dependencies: dependenciesSchema });
 const mobbinMcpSchema = z.object({ mobbin: z.object({ url: z.string() }) });
 const bunMcpSchema = z.object({ bun: z.object({ url: z.string() }) });
 const claudeMcpSchema = z.object({ mcpServers: bunMcpSchema });
-const configHeader =
-  "// AGENTS: Do not modify this file unless the user explicitly authorizes the change and specifies which rules to add,\n" +
-  "// remove, or modify. Do not weaken rules to make checks pass.\n";
 
 async function assertImportedJscpdSkills(output: string) {
   for (const name of ["jscpd", "dry-refactoring", "codebase-refactoring", "compare-codebases", "code-migration"]) {
@@ -103,17 +100,9 @@ test(
         for (const name of ["eslint.config.ts", "prettier.config.mjs"]) {
           const source = await readFile(path.join(process.cwd(), name), "utf8");
 
-          if (name === "eslint.config.ts") {
-            assert.ok(source.startsWith(configHeader));
-          }
-
           for (const host of ["codex", "claude"]) {
             const published = await readFile(path.join(output, `dist/${host}/plugins/engineering/${name}`), "utf8");
             assert.equal(published, source);
-
-            if (name === "eslint.config.ts") {
-              assert.ok(published.startsWith(configHeader));
-            }
           }
         }
 

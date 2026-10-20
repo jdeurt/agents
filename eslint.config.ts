@@ -14,6 +14,22 @@ import unicorn from "eslint-plugin-unicorn";
 // The build copies this source and bundles these pinned dependencies for Engineering.
 const resolutionRoot = fileURLToPath(new URL(".", import.meta.url));
 
+// Keep each omission tied to an actual conflict; eslint-config-prettier also disables compatible rules.
+export const stylisticConflicts: Record<string, string> = {
+  "@stylistic/arrow-parens": "Prettier arrowParens=always conflicts with as-needed parentheses.",
+  "@stylistic/brace-style": "Prettier keeps else/catch/finally beside the closing brace; Stroustrup separates them.",
+  "@stylistic/comma-dangle": "Prettier trailingComma=es5 omits function argument commas required by always-multiline.",
+  "@stylistic/indent-binary-ops":
+    "Prettier indents wrapped string concatenation arguments further than this rule allows.",
+  "@stylistic/member-delimiter-style": "Prettier uses semicolons in TypeScript members, not none/comma delimiters.",
+  "@stylistic/operator-linebreak": "Prettier leaves assignment operators before a line break; before forbids this.",
+  "@stylistic/quote-props": "Prettier quotes only necessary object keys; consistent-as-needed quotes all sibling keys.",
+  "@stylistic/quotes": "Prettier singleQuote=false uses double quotes; the preset requires single quotes.",
+  "@stylistic/semi": "Prettier semi=true requires semicolons; the preset forbids them.",
+  "@stylistic/jsx-one-expression-per-line": "Prettier preserves inline JSX text and elements to preserve whitespace.",
+  "@stylistic/multiline-ternary": "Prettier can wrap a ternary branch while retaining its condition and operator line.",
+};
+
 export function createConfig(options: { typed?: boolean; tsconfigRootDir?: string; hook?: boolean } = {}) {
   const files = ["**/*.{ts,tsx,js,jsx,mjs,cjs,mts,cts}"];
   const tsFiles = ["**/*.{ts,tsx,mts,cts}"];
@@ -95,6 +111,15 @@ export function createConfig(options: { typed?: boolean; tsconfigRootDir?: strin
       : []),
     prettierRecommended,
     {
+      ...stylistic.configs.recommended,
+      files,
+      rules: Object.fromEntries(
+        Object.entries(stylistic.configs.recommended.rules ?? {}).filter(
+          ([rule]) => !Object.hasOwn(stylisticConflicts, rule)
+        )
+      ),
+    },
+    {
       files,
       rules: {
         "prettier/prettier": ["error", prettierOptions, { usePrettierrc: false }],
@@ -107,9 +132,9 @@ export function createConfig(options: { typed?: boolean; tsconfigRootDir?: strin
       plugins: { "@stylistic": stylistic },
       rules: {
         "@stylistic/lines-between-class-members": [
-          "warn",
-          { enforce: [{ blankLine: "always", prev: "method", next: "method" }] },
-          { exceptAfterOverload: true },
+          "error",
+          "always",
+          { exceptAfterSingleLine: false, exceptAfterOverload: true },
         ],
         "@stylistic/padding-line-between-statements": [
           "warn",
