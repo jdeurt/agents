@@ -161,6 +161,7 @@ export function createConfig(options: { typed?: boolean; tsconfigRootDir?: strin
         "unicorn/no-repeated-call-wrappers": "warn",
         "unicorn/try-complexity": "warn",
         "unicorn/no-array-reduce": "off",
+        "unicorn/no-null": "off",
         "unicorn/name-replacements": "off",
         "unicorn/filename-case": ["error", { cases: { kebabCase: true, pascalCase: true } }],
       },

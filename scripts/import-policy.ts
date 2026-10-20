@@ -45,7 +45,7 @@ Move a top-level version into serialized skill metadata.
 */
 function serializedImportedVersion(source: string, document: object, offset: number, version: string) {
   const original = jsonRecord.parse(document);
-  const metadata = normalizedVersionMetadata(original.metadata, version);
+  const metadata = normalizedVersionMetadata(original["metadata"], version);
   const normalized = { ...original, metadata };
 
   Reflect.deleteProperty(normalized, "version");

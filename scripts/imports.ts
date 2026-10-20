@@ -1,11 +1,11 @@
 import * as z from "zod/mini";
 
+import { externalImport, parseRegistry } from "./validation.ts";
 import { lstat, realpath, rm } from "node:fs/promises";
 import { readFile, writeFile } from "./io.ts";
 import { readImports, saveImports, validateMarkers, writeMarker } from "./import-config.ts";
 import type { ExternalImport } from "./types.ts";
 import { buildMarketplace } from "./build-marketplace.ts";
-import { parseRegistry } from "./validation.ts";
 import path from "node:path";
 
 const REQUIRED_ADD_ARGS = 6;
@@ -71,11 +71,14 @@ function parseImportOptions(flags: string[]) {
   const options = new Map<string, string>();
 
   for (let i = 0; i < flags.length; i += 2) {
-    if (!["--ref", "--harness"].includes(flags[i]) || options.has(flags[i])) {
+    const flag = flags[i];
+    const value = flags[i + 1];
+
+    if (flag === undefined || value === undefined || !["--ref", "--harness"].includes(flag) || options.has(flag)) {
       throw new Error("Unknown or duplicate option");
     }
 
-    options.set(flags[i], flags[i + 1]);
+    options.set(flag, value);
   }
 
   return options;
@@ -107,6 +110,10 @@ async function applyImportAddition(entry: ExternalImport, harness: string | unde
 
   async function stageAdd() {
     const pluginName = entry.destination.split("/", 2)[1];
+
+    if (!pluginName) {
+      throw new Error("Import destination must contain a plugin name");
+    }
 
     await saveImports(root, [...entries, entry]);
     await readImports(root);
@@ -156,15 +163,16 @@ async function addImport(requestArgs: string[]) {
   const [kind, name, repository, source, destination, license, ...flags] = requestArgs;
 
   const options = parseImportOptions(flags);
-  const entry: ExternalImport = {
+  const ref = options.get("--ref");
+  const entry = externalImport.parse({
     kind: z.enum(["skill", "plugin"]).parse(kind),
     name,
     repository,
     path: source,
     destination,
     license,
-    ...(options.has("--ref") && { ref: options.get("--ref") }),
-  };
+    ...(ref !== undefined && { ref }),
+  });
   const harness = options.get("--harness");
 
   if (kind === "plugin" && !["codex", "claude", "both"].includes(harness ?? "")) {
@@ -183,10 +191,11 @@ if (command === "check" && args.length === 0) {
   });
   console.log("Resolved latest imports and built .marketplace-build/.");
 } else if (command === "remove" && args.length === 1) {
-  const entry = entries.find((item) => item.name === args[0]);
+  const name = z.string().parse(args[0]);
+  const entry = entries.find((item) => item.name === name);
 
   if (!entry) {
-    throw new Error(`Unknown import: ${args[0]}`);
+    throw new Error(`Unknown import: ${name}`);
   }
 
   await rm(path.join(root, entry.destination + ".import"));

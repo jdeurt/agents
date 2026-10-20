@@ -36,7 +36,7 @@ function parseFrontmatterDocument(source: string) {
     throw new Error("Skill frontmatter must contain one YAML mapping.");
   }
 
-  return document;
+  return properties.parse(document);
 }
 
 /**
@@ -46,14 +46,15 @@ Read the leading YAML header and retain its end offset for document reconstructi
 */
 export function parseSkillFrontmatter(source: string) {
   const match = /^---\r?\n([\s\S]*?)\r?\n---(?=\r?\n|$)/.exec(source);
+  const header = match?.[1];
 
-  if (!match) {
+  if (!match || header === undefined) {
     throw new Error("SKILL.md must start with YAML frontmatter.");
   }
 
   return {
     header: { position: { end: { offset: match[0].length } } },
-    document: parseFrontmatterDocument(match[1]),
+    document: parseFrontmatterDocument(header),
   };
 }
 

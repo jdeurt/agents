@@ -1,7 +1,5 @@
 import * as z from "zod/mini";
 
-const VERSION_COMPONENT_COUNT = 3;
-
 import { readFile, writeFile } from "./io.ts";
 import type { Registry } from "./types.ts";
 import { digest } from "./sync-imports.ts";
@@ -9,8 +7,26 @@ import { filesIn } from "./build-files.ts";
 import { jsonRecord } from "./validation.ts";
 import path from "node:path";
 
+const VERSION_COMPONENT_INDICES: (0 | 1 | 2)[] = [0, 1, 2];
+const versionComponents = z.tuple([z.number(), z.number(), z.number()]);
+
 export type ReleaseState = Record<string, { hash: string; version: string } | undefined>;
 export const releaseStateSchema = z.record(z.string(), z.object({ hash: z.string(), version: z.string() }));
+
+/**
+Parse the three numeric components of a plain semantic version.
+@param version - Version text without prerelease or build metadata.
+@returns The major, minor, and patch components.
+*/
+function parseVersion(version: string) {
+  const parsed = versionComponents.safeParse(version.split(".").map(Number));
+
+  if (!/^\d+\.\d+\.\d+$/.test(version) || !parsed.success) {
+    throw new Error("Publication requires plain semantic versions");
+  }
+
+  return parsed.data;
+}
 
 /**
 Choose the authored version or advance the published patch version.
@@ -19,18 +35,14 @@ Choose the authored version or advance the published patch version.
 @returns The authored version when no prior release exists or it is newer, otherwise the next published patch version.
 */
 export function nextVersion(base: string, previous?: string) {
-  const a = base.split(".").map(Number),
-    b = previous ? previous.split(".").map(Number) : undefined;
-
-  if (!/^\d+\.\d+\.\d+$/.test(base) || (previous && !/^\d+\.\d+\.\d+$/.test(previous))) {
-    throw new Error("Publication requires plain semantic versions");
-  }
+  const a = parseVersion(base),
+    b = previous ? parseVersion(previous) : undefined;
 
   if (!b) {
     return base;
   }
 
-  for (let i = 0; i < VERSION_COMPONENT_COUNT; i++) {
+  for (const i of VERSION_COMPONENT_INDICES) {
     if (a[i] > b[i]) {
       return base;
     }

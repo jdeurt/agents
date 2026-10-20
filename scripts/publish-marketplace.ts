@@ -108,7 +108,7 @@ Find and fetch the existing distribution revision.
 @returns The prior publication commit, or an empty string when absent or skipped.
 */
 function previousPublication(root: string, isDryRun: boolean): string {
-  const previous = isDryRun ? "" : git(root, ["ls-remote", "origin", BRANCH]).split(/\s+/, 1)[0];
+  const previous = isDryRun ? "" : (git(root, ["ls-remote", "origin", BRANCH]).split(/\s+/, 1)[0] ?? "");
 
   if (previous) {
     git(root, ["fetch", "--no-tags", "origin", BRANCH]);

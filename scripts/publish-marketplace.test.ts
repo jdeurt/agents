@@ -15,6 +15,7 @@ test("publishes isolated snapshots, skips unchanged trees, and rejects stale lea
   async function verifySecondSnapshot(source: string, output: string, first: string) {
     const second = git(source, ["ls-remote", "origin", REFS_HEADS_MARKETPLACE]).split(/\s+/, 1)[0];
 
+    assert.ok(second);
     assert.equal(git(source, ["rev-list", "--count", second]), "1");
     await writeFile(path.join(output, "README.md"), "stale writer");
     assert.throws(() => didPublishTree(source, output, first), /stale info|rejected/);
@@ -23,6 +24,7 @@ test("publishes isolated snapshots, skips unchanged trees, and rejects stale lea
   async function verifyFirstSnapshot(source: string, output: string) {
     const first = git(source, ["ls-remote", "origin", REFS_HEADS_MARKETPLACE]).split(/\s+/, 1)[0];
 
+    assert.ok(first);
     assert.equal(git(source, ["rev-list", "--count", first]), "1");
     assert.equal(didPublishTree(source, output, first), false);
     await writeFile(path.join(output, "README.md"), "updated");

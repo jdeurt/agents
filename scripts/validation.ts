@@ -10,13 +10,13 @@ export const externalImport = z.strictObject({
   name: z.string(),
   repository: z.string(),
   kind: z.enum(["skill", "plugin"]),
-  ref: z.optional(z.string()),
+  ref: z.exactOptional(z.string()),
   path: z.string(),
   destination: z.string(),
   license: z.string(),
-  scripts: z.optional(importScripts),
-  hooks: z.optional(z.boolean()),
-  local_mcp: z.optional(z.boolean()),
+  scripts: z.exactOptional(importScripts),
+  hooks: z.exactOptional(z.boolean()),
+  local_mcp: z.exactOptional(z.boolean()),
 });
 
 /**
@@ -30,24 +30,24 @@ export function parseJsonRecord(source: string) {
 
 const commandServer = z.strictObject({
   command: z.string(),
-  args: z.optional(stringList),
-  env: z.optional(stringRecord),
-  cwd: z.optional(z.string()),
+  args: z.exactOptional(stringList),
+  env: z.exactOptional(stringRecord),
+  cwd: z.exactOptional(z.string()),
 });
 const httpServer = z.strictObject({
   transport: z.literal("http"),
   url: z.string(),
-  headers: z.optional(stringRecord),
+  headers: z.exactOptional(stringRecord),
 });
 const server = z.union([commandServer, httpServer]);
 const servers = z.record(z.string(), server);
 const unsupportedPolicy = z.enum(["drop", "degrade", "fail"]);
-const harnessDefault = z.looseObject({ onUnsupported: z.optional(unsupportedPolicy) });
+const harnessDefault = z.looseObject({ onUnsupported: z.exactOptional(unsupportedPolicy) });
 const harnessDefaults = z.partialRecord(z.enum(["claude", "codex"]), harnessDefault);
 const soubi = z.strictObject({
-  mcpServers: z.optional(servers),
-  assets: z.optional(stringList),
-  harnessDefaults: z.optional(harnessDefaults),
+  mcpServers: z.exactOptional(servers),
+  assets: z.exactOptional(stringList),
+  harnessDefaults: z.exactOptional(harnessDefaults),
 });
 const plugin = z.strictObject({
   name: z.string(),
@@ -55,15 +55,15 @@ const plugin = z.strictObject({
   description: z.string(),
   category: z.string(),
   harnesses: z.array(z.enum(["claude", "codex"])),
-  authentication: z.optional(z.enum(["on-install", "on-use"])),
-  native: z.optional(z.boolean()),
-  author: z.optional(z.string()),
-  license: z.optional(z.string()),
-  soubi: z.optional(soubi),
+  authentication: z.exactOptional(z.enum(["on-install", "on-use"])),
+  native: z.exactOptional(z.boolean()),
+  author: z.exactOptional(z.string()),
+  license: z.exactOptional(z.string()),
+  soubi: z.exactOptional(soubi),
 });
 const marketplace = z.strictObject({
   name: z.string(),
-  display_name: z.optional(z.string()),
+  display_name: z.exactOptional(z.string()),
   owner: z.string(),
   description: z.string(),
 });

@@ -86,7 +86,11 @@ The skill documents compatible pinned dependencies, the TypeScript config loader
 
 The shared configuration uses `@eslint/js` recommended and Unicorn `recommended`. Unicorn has no supported `strict` preset. Type-aware source uses TypeScript ESLint `strictTypeChecked` and `stylisticTypeChecked`. React files use React Hooks' modern flat `recommended-latest` preset.
 
-The repository enables `strictNullChecks` and `allowJs`. The shared ESLint configuration applies these presets and project service to authored JavaScript and TypeScript. Covered extensions are `.js`, `.jsx`, `.mjs`, `.cjs`, `.ts`, `.tsx`, `.mts`, and `.cts`. The TypeScript program includes owned source across the repository with `**/*`. It excludes `node_modules/`, `dist/`, `.marketplace-build/`, and `.marketplace-verify/`.
+The repository enables `strict`, `allowJs`, and `checkJs`. The compiler validates JavaScript as well as TypeScript. The shared ESLint configuration applies these presets and project service to authored JavaScript and TypeScript. Covered extensions are `.js`, `.jsx`, `.mjs`, `.cjs`, `.ts`, `.tsx`, `.mts`, and `.cts`. The TypeScript program includes owned source across the repository with `**/*`. It excludes `node_modules/`, `dist/`, `.marketplace-build/`, and `.marketplace-verify/`.
+
+The compiler also validates indexed access, exact optional properties, overrides, index-signature access, switch fallthrough, return paths, and unused declarations and parameters. It rejects unreachable code, unused labels, and unresolved side-effect imports. It validates declaration files with `skipLibCheck: false`. Consistent filename casing, isolated modules, and verbatim module syntax match Bun execution. `bun run check-types` runs `tsc --noEmit` locally and in CI. Type-aware ESLint rules use type information but do not replace compiler diagnostics.
+
+The shared policy permits `null` by disabling only `unicorn/no-null`. TypeScript `strictNullChecks` still requires safe handling of nullable values.
 
 The shared configuration applies a 350-line lint limit and a 120-column Prettier formatting target. It requires braces for control flow, while concise arrow expressions remain valid. Unicorn rules without an explicit override use their recommended error severities and default options. Core `complexity` warns above its default maximum of 20. `unicorn/try-complexity` warns above its default maximum of 1.
 
@@ -122,7 +126,9 @@ Direct `void`, `undefined`, and `never` return annotations need no return descri
 
 Preserve the inherited starless documentation-comment format.
 
-`jdeurt/const-on-top` requires both `const` and `let` declarations before executable statements in their program or block scope. Imports, type declarations, function declarations, and variable declarations can share the leading declaration prefix. Loop-header declarations remain valid. Consecutive declarations of the same kind may stay together. Leave a blank line after the final `const` or `let` before another kind of declaration or other code. It offers no automatic hoist that could change evaluation order.
+`jdeurt/const-on-top` requires both `const` and `let` declarations before executable statements in their program, block, or static-block scope. Imports, types, functions, and variables can share the declaration prefix. Runtime declarations may use either `const` or `let` first. After switching kinds, they cannot return to the earlier kind. Ambient `declare` bindings do not select a runtime group. Each nested scope tracks its own groups, and loop-header declarations remain valid.
+
+The rule enforces declaration order only, regardless of whitespace. The separate `@stylistic/padding-line-between-statements` rule controls blank lines. The declaration rule has no automatic fix because reordering initializers can change evaluation order or dependencies.
 
 The inherited `unicorn/consistent-function-scoping` error flags functions that can move to an outer scope because they do not capture local state. Closures that capture locals, inline callbacks, and class methods remain valid where the rule permits them. `no-inner-declarations` and `max-nested-callbacks` do not express a general restriction on nested functions. The shared configuration adds no blanket function-placement restriction.
 

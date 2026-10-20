@@ -145,11 +145,11 @@ export async function readImports(root: string): Promise<ExternalImport[]> {
   const configSource = await readFile(path.join(root, IMPORTS_TOML), "utf8");
   const config = jsonRecord.parse(Bun.TOML.parse(configSource));
 
-  if (Object.keys(config).some((key) => key !== "imports") || !Array.isArray(config.imports)) {
+  if (Object.keys(config).some((key) => key !== "imports") || !Array.isArray(config["imports"])) {
     throw new Error("imports.toml must contain an imports array");
   }
 
-  return parseImportEntries(root, config.imports);
+  return parseImportEntries(root, config["imports"]);
 }
 
 /**
