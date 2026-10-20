@@ -1,11 +1,19 @@
 ---
 name: formatting-linting
-description: Use when setting up formatting and linting for a new project or applying the bundled JavaScript and TypeScript policies to an existing project. Provides shared ESLint and Prettier configuration and instructions for fixing findings.
+description: Use as a stylistic reference when writing code or setting up a new project.
 ---
 
 # Formatting and Linting
 
+Defines stylistic rules for writing code.
+
+Explicit project linting, formatting, and coding rules take precedence over anything in this skill when they conflict. A rule means a written instruction in project files or configuration, such as an instruction file, a contributor guide, or an ESLint or formatter setting. An observed pattern or convention in existing code is not itself a rule. Use observed norms to inform choices only where no explicit rule applies.
+
 Inspect the project's language, package manager, existing configuration, source directories, and generated output before making changes. Use the project's package manager; prefer Bun for a new Bun project. Preserve the user's requested policy and fix violations without weakening rules. This skill installs no automatic edit hooks.
+
+## Style across languages
+
+Read [Rules of style](references/style-rules.md) when writing or reviewing code in any language. Apply its legibility, correctness, maintainability, duplication, state, resource, and API principles using the language’s native constructs. The reference derives general concepts from every enabled ESLint warning/error, preserves source-rule mappings and syntax-specific exclusions, and illustrates each concept with TypeScript. Follow its all-on-one-line or one-item-per-line convention independently at each nesting depth; the linter does not enforce every case.
 
 ## JavaScript
 
