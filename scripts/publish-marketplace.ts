@@ -12,7 +12,7 @@ import { withResolvedSources } from "./resolve-sources.ts";
 const ROOT = fileURLToPath(new URL("../", import.meta.url));
 const BRANCH = "refs/heads/marketplace";
 
-export function publishTree(root: string, output: string, previous: string) {
+export function didPublishTree(root: string, output: string, previous: string) {
   git(output, ["init", "--quiet"]);
   git(output, ["add", "--all"]);
   const tree = git(output, ["write-tree"]);
@@ -55,7 +55,8 @@ export async function publishMarketplace({ root = ROOT, dryRun = false } = {}) {
     git(root, ["fetch", "--no-tags", "origin", BRANCH]);
   }
 
-  const output = await realpath(await mkdtemp(path.join(tmpdir(), "agents-publish-")));
+  const temporaryDirectory = await mkdtemp(path.join(tmpdir(), "agents-publish-"));
+  const output = await realpath(temporaryDirectory);
 
   async function prepareAndPublish() {
     await withResolvedSources(root, async (resolved) => {
@@ -67,8 +68,9 @@ export async function publishMarketplace({ root = ROOT, dryRun = false } = {}) {
         check: true,
       });
     });
-    const registry = parseRegistry(Bun.TOML.parse(await readFile(path.join(root, "marketplace.toml"), "utf8")));
-    const hasState = previous && git(root, ["ls-tree", "--name-only", previous, ".publication.json"]);
+    const registryText = await readFile(path.join(root, "marketplace.toml"), "utf8");
+    const registry = parseRegistry(Bun.TOML.parse(registryText));
+    const hasState = Boolean(previous && git(root, ["ls-tree", "--name-only", previous, ".publication.json"]));
     const state = hasState
       ? releaseStateSchema.parse(JSON.parse(git(root, ["show", `${previous}:.publication.json`])))
       : {};
@@ -85,7 +87,7 @@ export async function publishMarketplace({ root = ROOT, dryRun = false } = {}) {
       throw new Error("Source changed during build; rerun publication");
     }
 
-    console.log(publishTree(root, output, previous) ? "Published marketplace." : "Marketplace unchanged.");
+    console.log(didPublishTree(root, output, previous) ? "Published marketplace." : "Marketplace unchanged.");
   }
 
   try {

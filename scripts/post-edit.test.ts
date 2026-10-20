@@ -246,8 +246,11 @@ test("ignores generated, deleted, symlink-escaped and unsupported files", async 
   await mkdir(path.join(root, "dist"));
   await writeFile(path.join(root, "dist", "skip.js"), "const x=1");
   process.env.JDEURT_EDIT_LINT_ACTIVE = "1";
-  expect(await run(event(root, path.join(root, "escape.js")))).toBe("");
-  expect(await run(event(root, path.join(root, "missing.js")))).toBe("");
-  expect(await run(event(root, path.join(root, "dist", "skip.js")))).toBe("");
+
+  for (const file of ["escape.js", "missing.js", "dist/skip.js"]) {
+    const ignoredEvent = event(root, path.join(root, file));
+    expect(await run(ignoredEvent)).toBe("");
+  }
+
   expect(await readFile(path.join(outside, "escape.js"), "utf8")).toBe("const x=1");
 });

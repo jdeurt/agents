@@ -16,9 +16,10 @@ test(
   "imports track latest by default, support pins and whole plugins, and leave sources untouched",
   async () =>
     withImportFixture(async (upstream) => {
-      const root = await realpath(await mkdtemp(path.join(tmpdir(), "agents-imports-test-")));
+      const temporaryRoot = await mkdtemp(path.join(tmpdir(), "agents-imports-test-"));
+      const root = await realpath(temporaryRoot);
 
-      try {
+      async function assertImportLifecycle() {
         for (const item of ["plugins", "eslint.config.ts", "prettier.config.mjs", "marketplace.toml", "imports.toml"]) {
           await cp(path.join(source, item), path.join(root, item), {
             recursive: true,
@@ -91,6 +92,10 @@ test(
         );
         await buildMarketplace({ root, output });
         assert.equal(await Bun.file(path.join(output, "dist/codex/plugins/sample/hooks.json")).exists(), false);
+      }
+
+      try {
+        await assertImportLifecycle();
       } finally {
         await rm(root, { recursive: true, force: true });
       }

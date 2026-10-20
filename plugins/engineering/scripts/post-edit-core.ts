@@ -14,14 +14,15 @@ const MAX_ERROR_MESSAGE_CHARS = 220;
 const MAX_AGENT_CONTEXT_CHARS = 4000;
 const MAX_EVENT_BYTES = 256_000;
 
+const toolInputSchema = z.optional(z.record(z.string(), z.unknown()));
 const eventSchema = z.object({
   cwd: z.optional(z.string()),
   tool_name: z.optional(z.string()),
-  tool_input: z.optional(z.record(z.string(), z.unknown())),
+  tool_input: toolInputSchema,
   tool_response: z.optional(z.unknown()),
 });
 type Event = z.infer<typeof eventSchema>;
-const exists = async (name: string) => {
+const hasFile = async (name: string) => {
   try {
     await access(name);
 
@@ -116,6 +117,39 @@ async function inspectFile(file: string, content: string, root: string, cwd: str
   };
 }
 
+async function inspectEditedFile(file: string, root: string, cwd: string, original: string) {
+  try {
+    return await inspectFile(file, original, root, cwd);
+  } catch (error) {
+    return {
+      content: original,
+      notes: [`ESLint unavailable or crashed: ${String(error).slice(0, MAX_ERROR_MESSAGE_CHARS)}`],
+      hasFindings: false,
+      ignored: false,
+    };
+  }
+}
+
+async function resolveEditedFile(name: string, suppliedCwd: string, cwd: string) {
+  const candidate = path.resolve(suppliedCwd, name);
+
+  if (candidate !== suppliedCwd && !candidate.startsWith(`${suppliedCwd}${path.sep}`)) {
+    return;
+  }
+
+  if (!(await hasFile(candidate))) {
+    return;
+  }
+
+  const file = await realpath(candidate);
+
+  if (!file.startsWith(`${cwd}${path.sep}`) || SKIP.test(file)) {
+    return;
+  }
+
+  return file;
+}
+
 export async function run(event: Event): Promise<string> {
   if (process.env.JDEURT_EDIT_LINT_ACTIVE !== "1") {
     return "Edit lint core must run through its bounded hook wrapper.";
@@ -136,41 +170,23 @@ export async function run(event: Event): Promise<string> {
   let hasFindings = false;
 
   for (const name of editedPaths(event).slice(0, MAX_EDITED_FILES)) {
-    const candidate = path.resolve(suppliedCwd, name);
+    const file = await resolveEditedFile(name, suppliedCwd, cwd);
 
-    if (candidate !== suppliedCwd && !candidate.startsWith(`${suppliedCwd}${path.sep}`)) {
-      continue;
-    }
-
-    if (!(await exists(candidate))) {
-      continue;
-    }
-
-    const file = await realpath(candidate);
-
-    if (!file.startsWith(`${cwd}${path.sep}`) || SKIP.test(file)) {
+    if (!file) {
       continue;
     }
 
     const rootConfig = await nearest(path.dirname(file), ["package.json"], cwd);
     const root = rootConfig ? path.dirname(rootConfig) : cwd;
     const original = await readFile(file, "utf8");
-    let content = original;
-    const notes: string[] = [];
+    const result = await inspectEditedFile(file, root, cwd, original);
 
-    try {
-      const result = await inspectFile(file, content, root, cwd);
-
-      if (result.ignored) {
-        continue;
-      }
-
-      content = result.content;
-      notes.push(...result.notes);
-      hasFindings ||= result.hasFindings;
-    } catch (error) {
-      notes.push(`ESLint unavailable or crashed: ${String(error).slice(0, MAX_ERROR_MESSAGE_CHARS)}`);
+    if (result.ignored) {
+      continue;
     }
+
+    const { content, notes } = result;
+    hasFindings ||= result.hasFindings;
 
     if (content !== original && (await readFile(file, "utf8")) === original) {
       await writeFile(file, content);
@@ -189,15 +205,19 @@ export async function run(event: Event): Promise<string> {
   return lines.join("\n").slice(0, MAX_AGENT_CONTEXT_CHARS);
 }
 
+async function reportEvent() {
+  const input = readFileSync(0, "utf8").slice(0, MAX_EVENT_BYTES);
+  const event = eventSchema.parse(JSON.parse(input));
+  const result = await run(event);
+
+  if (result) {
+    console.log(result);
+  }
+}
+
 if (process.argv[1] && realpathSync(process.argv[1]) === realpathSync(fileURLToPath(import.meta.url))) {
   try {
-    const input = readFileSync(0, "utf8").slice(0, MAX_EVENT_BYTES);
-    const event = eventSchema.parse(JSON.parse(input));
-    const result = await run(event);
-
-    if (result) {
-      console.log(result);
-    }
+    await reportEvent();
   } catch (error) {
     console.log(`Edit lint hook could not inspect the edit: ${String(error).slice(0, MAX_ERROR_MESSAGE_CHARS)}`);
   }

@@ -10,6 +10,32 @@ import { readFile, writeFile } from "./io.ts";
 import path from "node:path";
 const json = (value: unknown) => `${JSON.stringify(value, undefined, 2)}\n`;
 
+function applyExplicitCodexPolicy(files: Map<string, HarnessOutput["files"][number]>, name: string) {
+  const configPath = `skills/${name}/agents/openai.yaml`;
+  const existing = files.get(configPath);
+  const document = existing ? Bun.YAML.parse(Buffer.from(existing.contents).toString()) : {};
+
+  if (!document || typeof document !== "object" || Array.isArray(document)) {
+    throw new Error(`${configPath}: configuration must be a YAML mapping`);
+  }
+
+  const policy: unknown = Reflect.get(document, "policy");
+
+  if (policy !== undefined && (!policy || typeof policy !== "object" || Array.isArray(policy))) {
+    throw new Error(`${configPath}: policy must be a YAML mapping`);
+  }
+
+  Reflect.set(document, "policy", {
+    ...(policy && typeof policy === "object" && !Array.isArray(policy) && policy),
+    allow_implicit_invocation: false,
+  });
+  files.set(configPath, {
+    ...existing,
+    path: configPath,
+    contents: Bun.YAML.stringify(document, undefined, 2),
+  });
+}
+
 function applyInvocationPolicies(
   output: HarnessOutput,
   harness: "claude" | "codex",
@@ -18,7 +44,7 @@ function applyInvocationPolicies(
   const files = new Map(output.files.map((file) => [file.path, file]));
 
   for (const [name, metadata] of skills) {
-    const explicit = metadata.metadata?.invocation === "explicit";
+    const isExplicit = metadata.metadata?.invocation === "explicit";
 
     const skillPath = `skills/${name}/SKILL.md`;
     const skill = files.get(skillPath);
@@ -31,7 +57,9 @@ function applyInvocationPolicies(
     const { header, document: skillDocument } = parseSkillFrontmatter(source);
 
     // Soubi 0.0.1 flattens nested YAML metadata; retain the validated source fields.
-    for (const key of Object.keys(metadata.metadata ?? {})) {
+    const metadataKeys = Object.keys(metadata.metadata ?? {});
+
+    for (const key of metadataKeys) {
       if (!Object.hasOwn(metadata, key)) {
         Reflect.deleteProperty(skillDocument, key);
       }
@@ -46,7 +74,7 @@ function applyInvocationPolicies(
       delete skillDocument["user-invocable"];
     }
 
-    if (explicit && harness === "claude") {
+    if (isExplicit && harness === "claude") {
       skillDocument["disable-model-invocation"] = true;
     }
 
@@ -57,33 +85,11 @@ function applyInvocationPolicies(
         source.slice(header.position.end.offset),
     });
 
-    if (!explicit || harness !== "codex") {
+    if (!isExplicit || harness !== "codex") {
       continue;
     }
 
-    const configPath = `skills/${name}/agents/openai.yaml`;
-    const existing = files.get(configPath);
-    const document = existing ? Bun.YAML.parse(Buffer.from(existing.contents).toString()) : {};
-
-    if (!document || typeof document !== "object" || Array.isArray(document)) {
-      throw new Error(`${configPath}: configuration must be a YAML mapping`);
-    }
-
-    const policy: unknown = Reflect.get(document, "policy");
-
-    if (policy !== undefined && (!policy || typeof policy !== "object" || Array.isArray(policy))) {
-      throw new Error(`${configPath}: policy must be a YAML mapping`);
-    }
-
-    Reflect.set(document, "policy", {
-      ...(policy && typeof policy === "object" && !Array.isArray(policy) && policy),
-      allow_implicit_invocation: false,
-    });
-    files.set(configPath, {
-      ...existing,
-      path: configPath,
-      contents: Bun.YAML.stringify(document, undefined, 2),
-    });
+    applyExplicitCodexPolicy(files, name);
   }
 
   return files.values();
@@ -94,17 +100,18 @@ async function compileNativePlugin(plugin: Plugin, source: string, sourceFiles: 
 
   for (const harness of plugin.harnesses) {
     const manifestPath = `.${harness}-plugin/plugin.json`;
-    const portable = harness === "codex" && sourceFiles.includes("plugin.json");
-    const selected = portable ? "plugin.json" : manifestPath;
+    const isPortable = harness === "codex" && sourceFiles.includes("plugin.json");
+    const selected = isPortable ? "plugin.json" : manifestPath;
     await readFile(path.join(source, selected), "utf8");
 
     for (const file of sourceFiles) {
       let contents = await readFile(path.join(source, file));
 
       if (file === selected || file === manifestPath) {
+        const manifest = parseJsonRecord(contents.toString());
         contents = Buffer.from(
           json({
-            ...JSON.parse(contents.toString()),
+            ...manifest,
             name: `jdeurt-${plugin.name}`,
             version: plugin.version,
           })
@@ -132,6 +139,78 @@ async function copyEngineeringPolicy(root: string, project: string, name: string
   }
 }
 
+function collectCompiledFiles(
+  root: string,
+  plugin: Plugin,
+  outputs: HarnessOutput[],
+  skills: Map<string, Awaited<ReturnType<typeof validateSkillFrontmatter>>>
+) {
+  const files = new Map<string, BuiltFile>();
+
+  for (const harness of plugin.harnesses) {
+    const output = outputs.find((item) => item.harness === harness);
+
+    if (!output) {
+      throw new Error(`${plugin.name}: missing ${harness} output`);
+    }
+
+    const base = `dist/${harness}/plugins/${plugin.name}`;
+    const manifestPath = `.${harness}-plugin/plugin.json`;
+
+    if (output.files.every((file) => file.path !== manifestPath)) {
+      throw new Error(`${plugin.name}: missing ${harness} manifest`);
+    }
+
+    for (const file of applyInvocationPolicies(output, harness, skills)) {
+      // Soubi 0.0.1 emits obsolete manual-install advice for Codex plugin hooks.
+      // Current local Codex loads bundled hooks after the user trusts the plugin.
+      if (harness === "codex" && plugin.name === "engineering" && file.path === "hooks/README.md") {
+        continue;
+      }
+
+      inside(root, file.path);
+      let contents = Buffer.from(file.contents);
+
+      if (file.path === manifestPath) {
+        const manifest = parseJsonRecord(contents.toString());
+        contents = Buffer.from(
+          json({
+            ...manifest,
+            name: `jdeurt-${plugin.name}`,
+            version: plugin.version,
+            ...(plugin.license && { license: plugin.license }),
+          })
+        );
+      }
+
+      if (harness === "codex" && file.path === ".mcp.json") {
+        const servers = z.record(z.string(), jsonRecord).parse(JSON.parse(contents.toString()));
+
+        // Soubi 0.0.1 drops cwd for Codex; native plugins resolve it against their installed root.
+        const sourceServers = Object.entries(plugin.soubi?.mcpServers ?? {});
+
+        for (const [name, server] of sourceServers) {
+          if ("command" in server && server.command && server.cwd) {
+            servers[name].cwd = server.cwd.replaceAll("${PLUGIN_ROOT}", ".");
+          }
+        }
+
+        contents = Buffer.from(json(servers));
+      }
+
+      const target = `${base}/${file.path}`;
+
+      if (files.has(target)) {
+        throw new Error(`Duplicate generated file: ${target}`);
+      }
+
+      files.set(target, { contents, mode: file.executable ? EXECUTABLE_MODE : REGULAR_MODE });
+    }
+  }
+
+  return files;
+}
+
 export async function compilePlugin(root: string, plugin: Plugin, owner: string, staging: string) {
   const source = inside(root, `plugins/${plugin.name}`);
   const resolved = await realpath(source);
@@ -142,8 +221,8 @@ export async function compilePlugin(root: string, plugin: Plugin, owner: string,
   }
 
   const pluginsRoot = path.join(root, "plugins");
-  const filter = marketplaceSourceFilter(pluginsRoot);
-  const sourceFiles = await filesIn(source, "", pluginsRoot, new Set(), filter);
+  const shouldInclude = marketplaceSourceFilter(pluginsRoot);
+  const sourceFiles = await filesIn(source, "", pluginsRoot, new Set(), shouldInclude);
 
   if (plugin.native) {
     return compileNativePlugin(plugin, source, sourceFiles);
@@ -165,7 +244,7 @@ export async function compilePlugin(root: string, plugin: Plugin, owner: string,
   }
 
   const project = path.join(staging, plugin.name);
-  await cp(source, project, { recursive: true, dereference: true, filter });
+  await cp(source, project, { recursive: true, dereference: true, filter: shouldInclude });
 
   await copyEngineeringPolicy(root, project, plugin.name);
 
@@ -209,66 +288,5 @@ export async function compilePlugin(root: string, plugin: Plugin, owner: string,
     );
   }
 
-  const files = new Map<string, BuiltFile>();
-
-  for (const harness of plugin.harnesses) {
-    const output = result.outputs.find((item) => item.harness === harness);
-
-    if (!output) {
-      throw new Error(`${plugin.name}: missing ${harness} output`);
-    }
-
-    const base = `dist/${harness}/plugins/${plugin.name}`;
-    const manifestPath = `.${harness}-plugin/plugin.json`;
-
-    if (output.files.every((file) => file.path !== manifestPath)) {
-      throw new Error(`${plugin.name}: missing ${harness} manifest`);
-    }
-
-    for (const file of applyInvocationPolicies(output, harness, skills)) {
-      // Soubi 0.0.1 emits obsolete manual-install advice for Codex plugin hooks.
-      // Current local Codex loads bundled hooks after the user trusts the plugin.
-      if (plugin.name === "engineering" && harness === "codex" && file.path === "hooks/README.md") {
-        continue;
-      }
-
-      inside(root, file.path);
-      let contents = Buffer.from(file.contents);
-
-      if (file.path === manifestPath) {
-        const manifest = parseJsonRecord(contents.toString());
-        contents = Buffer.from(
-          json({
-            ...manifest,
-            name: `jdeurt-${plugin.name}`,
-            version: plugin.version,
-            ...(plugin.license && { license: plugin.license }),
-          })
-        );
-      }
-
-      if (harness === "codex" && file.path === ".mcp.json") {
-        const servers = z.record(z.string(), jsonRecord).parse(JSON.parse(contents.toString()));
-
-        // Soubi 0.0.1 drops cwd for Codex; native plugins resolve it against their installed root.
-        for (const [name, server] of Object.entries(plugin.soubi?.mcpServers ?? {})) {
-          if ("command" in server && server.command && server.cwd) {
-            servers[name].cwd = server.cwd.replaceAll("${PLUGIN_ROOT}", ".");
-          }
-        }
-
-        contents = Buffer.from(json(servers));
-      }
-
-      const target = `${base}/${file.path}`;
-
-      if (files.has(target)) {
-        throw new Error(`Duplicate generated file: ${target}`);
-      }
-
-      files.set(target, { contents, mode: file.executable ? EXECUTABLE_MODE : REGULAR_MODE });
-    }
-  }
-
-  return files;
+  return collectCompiledFiles(root, plugin, result.outputs, skills);
 }

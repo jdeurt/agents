@@ -1,6 +1,6 @@
 import { defineHook } from "soubi";
 
-export default defineHook({
+const hook = defineHook({
   id: "lint-format-edited-files",
   description: "Format edited JS/TS files and report remaining diagnostics.",
   event: "PostToolUse",
@@ -12,3 +12,5 @@ export default defineHook({
     timeoutMs: 80_000,
   },
 });
+
+export default hook;

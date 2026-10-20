@@ -12,7 +12,7 @@ export interface Finding {
   message: string;
   fatal?: boolean;
 }
-const exists = async (name: string) => {
+const hasFile = async (name: string) => {
   try {
     await access(name);
 
@@ -27,7 +27,7 @@ export async function nearest(start: string, names: string[], limit: string) {
 
   while (current === limit || current.startsWith(`${limit}${path.sep}`)) {
     for (const name of names) {
-      if (await exists(path.join(current, name))) {
+      if (await hasFile(path.join(current, name))) {
         return path.join(current, name);
       }
     }
@@ -39,7 +39,7 @@ export async function nearest(start: string, names: string[], limit: string) {
     current = path.dirname(current);
   }
 
-  return undefined;
+  return;
 }
 
 function hasStrictNullChecks(tsconfig: string) {
@@ -58,26 +58,33 @@ function hasStrictNullChecks(tsconfig: string) {
   return parsed.options.strictNullChecks ?? parsed.options.strict ?? false;
 }
 
-async function bundledConfig(file: string, root: string, forceUntyped = false) {
+function strictNullCheckSkipReason(tsconfig: string) {
+  let isStrict: boolean;
+
+  try {
+    isStrict = hasStrictNullChecks(tsconfig);
+  } catch {
+    return "project tsconfig could not be resolved";
+  }
+
+  if (!isStrict) {
+    return "project tsconfig does not enable strict null checks";
+  }
+}
+
+async function bundledConfig(file: string, root: string, shouldForceUntyped = false) {
   const tsconfig = await nearest(path.dirname(file), ["tsconfig.json"], root);
-  let typed = Boolean(!forceUntyped && tsconfig && TYPESCRIPT.test(file));
+  let isTyped = Boolean(!shouldForceUntyped && tsconfig && TYPESCRIPT.test(file));
   let typedSkipReason: string | undefined;
 
-  if (typed && tsconfig) {
-    try {
-      if (!hasStrictNullChecks(tsconfig)) {
-        typed = false;
-        typedSkipReason = "project tsconfig does not enable strict null checks";
-      }
-    } catch {
-      typed = false;
-      typedSkipReason = "project tsconfig could not be resolved";
-    }
+  if (isTyped && tsconfig) {
+    typedSkipReason = strictNullCheckSkipReason(tsconfig);
+    isTyped = !typedSkipReason;
   }
 
   return {
-    config: sharedConfig.createConfig({ typed, tsconfigRootDir: tsconfig ? path.dirname(tsconfig) : root, hook: true }),
-    typed,
+    config: sharedConfig.createConfig({ typed: isTyped, tsconfigRootDir: tsconfig ? path.dirname(tsconfig) : root, hook: true }),
+    typed: isTyped,
     typedSkipReason,
   };
 }
@@ -99,7 +106,7 @@ export async function lint(file: string, content: string, root: string) {
 
   const results = await engine.lintText(content, { filePath: file });
   let result = results[0];
-  let typedSkipped = false;
+  let isTypedSkipped = false;
 
   if (
     bundled.typed &&
@@ -113,14 +120,14 @@ export async function lint(file: string, content: string, root: string) {
     });
     const retryResults = await retry.lintText(content, { filePath: file });
     result = retryResults[0];
-    typedSkipped = true;
+    isTypedSkipped = true;
   }
 
   return {
     ignored: false,
     output: result.output,
     findings: result.messages,
-    typedSkipped,
+    typedSkipped: isTypedSkipped,
     typedSkipReason: bundled.typedSkipReason,
   };
 }

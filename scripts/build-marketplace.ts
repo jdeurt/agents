@@ -14,18 +14,22 @@ import { withResolvedSources } from "./resolve-sources.ts";
 const ROOT = fileURLToPath(new URL("../", import.meta.url));
 const json = (value: unknown) => `${JSON.stringify(value, undefined, 2)}\n`;
 
+async function recordDifference(output: string, file: string, value: BuiltFile, differences: string[]) {
+  const filename = inside(output, file);
+  const info = await stat(filename);
+  const isExecutable = Boolean(info.mode & EXECUTABLE_BITS);
+
+  if (!value.contents.equals(await readFile(filename)) || isExecutable !== Boolean(value.mode & EXECUTABLE_BITS)) {
+    differences.push(file);
+  }
+}
+
 async function compareBuild(output: string, expected: Map<string, BuiltFile>, stale: string[]) {
   const differences = [...stale];
 
   for (const [file, value] of expected) {
     try {
-      const filename = inside(output, file);
-      const info = await stat(filename);
-      const executable = Boolean(info.mode & EXECUTABLE_BITS);
-
-      if (!value.contents.equals(await readFile(filename)) || executable !== Boolean(value.mode & EXECUTABLE_BITS)) {
-        differences.push(file);
-      }
+      await recordDifference(output, file, value, differences);
     } catch (error) {
       if (!(error instanceof Error && "code" in error && error.code === "ENOENT")) {
         throw error;
@@ -77,11 +81,13 @@ export async function buildMarketplace({
     await mkdir(output, { recursive: true });
   }
 
-  const registry = parseRegistry(TOML.parse(await readFile(path.join(root, "marketplace.toml"), "utf8")));
+  const registryText = await readFile(path.join(root, "marketplace.toml"), "utf8");
+  const registry = parseRegistry(TOML.parse(registryText));
   const expected = new Map<string, BuiltFile>();
-  const staging = await realpath(await mkdtemp(path.join(tmpdir(), "agents-marketplace-")));
+  const temporaryDirectory = await mkdtemp(path.join(tmpdir(), "agents-marketplace-"));
+  const staging = await realpath(temporaryDirectory);
 
-  try {
+  async function compilePlugins() {
     await writeFile(path.join(staging, "package.json"), json({ type: "module" }));
     await symlink(path.join(ROOT, "node_modules"), path.join(staging, "node_modules"), "dir");
 
@@ -92,6 +98,10 @@ export async function buildMarketplace({
         expected.set(file, content);
       }
     }
+  }
+
+  try {
+    await compilePlugins();
   } finally {
     await rm(staging, { recursive: true, force: true });
   }
@@ -128,7 +138,7 @@ function parseOptions(args: string[]) {
 
     if (args[i] === "--check") {
       options.check = true;
-    } else if (args[i] === "--output" && next && !next.startsWith("--")) {
+    } else if (next && args[i] === "--output" && !next.startsWith("--")) {
       options.output = path.resolve(args[++i]);
     } else {
       throw new Error("Usage: bun scripts/build-marketplace.ts [--check] [--output directory]");

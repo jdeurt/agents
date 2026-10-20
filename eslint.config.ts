@@ -1,3 +1,5 @@
+// AGENTS: Do not modify this file unless the user explicitly authorizes the change and specifies which rules to add,
+// remove, or modify. Do not weaken rules to make checks pass.
 import { defineConfig } from "eslint/config";
 import { fileURLToPath } from "node:url";
 import js from "@eslint/js";
@@ -38,7 +40,7 @@ export function createConfig(options: { typed?: boolean; tsconfigRootDir?: strin
         "no-self-compare": "warn",
         "no-unreachable-loop": "warn",
         "no-use-before-define": "warn",
-        complexity: ["warn", { max: 30 }],
+        complexity: "warn",
         eqeqeq: "warn",
         "no-lonely-if": "warn",
         // Structural offsets and small counts are self-explanatory; other values need names.
@@ -48,22 +50,9 @@ export function createConfig(options: { typed?: boolean; tsconfigRootDir?: strin
         "prefer-const": "warn",
         "sort-imports": "warn",
         "unicorn/no-repeated-call-wrappers": "warn",
-        "unicorn/try-complexity": ["warn", { max: 5 }],
-        // Existing CLI code relies on nested schema builders, descriptive boolean names,
-        // in-place sorts, and explicit module setup. These newer preset rules obscure those patterns.
-        "unicorn/consistent-boolean-name": "off",
-        "unicorn/max-nested-calls": "off",
-        "unicorn/no-array-sort": "off",
-        "unicorn/no-top-level-side-effects": "off",
-        "unicorn/no-unreadable-for-of-expression": "off",
-        "unicorn/prefer-simple-condition-first": "off",
+        "unicorn/try-complexity": "warn",
         "unicorn/no-array-reduce": "off",
         "unicorn/name-replacements": "off",
-        "unicorn/prefer-top-level-await": "off",
-        "unicorn/no-nested-ternary": "off",
-        "unicorn/prefer-logical-operator-over-ternary": "off",
-        "unicorn/no-useless-undefined": "off",
-        "unicorn/prefer-string-replace-all": "off",
         "unicorn/filename-case": ["error", { cases: { kebabCase: true, pascalCase: true } }],
       },
     },
@@ -110,16 +99,38 @@ export function createConfig(options: { typed?: boolean; tsconfigRootDir?: strin
       rules: {
         "prettier/prettier": ["error", prettierOptions, { usePrettierrc: false }],
         curly: ["error", "all"],
+        "unicorn/no-nested-ternary": unicorn.configs.recommended.rules?.["unicorn/no-nested-ternary"] ?? "error",
       },
     },
     {
       files,
       plugins: { "@stylistic": stylistic },
       rules: {
+        "@stylistic/lines-between-class-members": [
+          "warn",
+          { enforce: [{ blankLine: "always", prev: "method", next: "method" }] },
+          { exceptAfterOverload: true },
+        ],
         "@stylistic/padding-line-between-statements": [
           "warn",
           { blankLine: "always", prev: "*", next: ["function", "class", "if", "switch", "for", "while", "do", "try"] },
           { blankLine: "always", prev: ["function", "class", "if", "switch", "for", "while", "do", "try"], next: "*" },
+          {
+            blankLine: "always",
+            prev: "*",
+            next: {
+              selector:
+                ":matches(ExportNamedDeclaration, ExportDefaultDeclaration)[declaration.type='ClassDeclaration']",
+            },
+          },
+          {
+            blankLine: "always",
+            prev: {
+              selector:
+                ":matches(ExportNamedDeclaration, ExportDefaultDeclaration)[declaration.type='ClassDeclaration']",
+            },
+            next: "*",
+          },
           { blankLine: "always", prev: { selector: "SwitchCase[consequent.length>0]" }, next: ["case", "default"] },
           { blankLine: "always", prev: "*", next: "return" },
         ],
@@ -128,4 +139,6 @@ export function createConfig(options: { typed?: boolean; tsconfigRootDir?: strin
   ]);
 }
 
-export default createConfig({ typed: true });
+const config = createConfig({ typed: true });
+
+export default config;

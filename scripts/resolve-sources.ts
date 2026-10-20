@@ -3,15 +3,20 @@ import path from "node:path";
 import { syncImports } from "./sync-imports.ts";
 import { tmpdir } from "node:os";
 
+async function copySources(root: string, resolved: string) {
+  for (const item of ["plugins", "eslint.config.ts", "prettier.config.mjs", "marketplace.toml", "imports.toml"]) {
+    await cp(path.join(root, item), path.join(resolved, item), {
+      recursive: true,
+    });
+  }
+}
+
 export async function withResolvedSources<T>(root: string, use: (resolved: string) => Promise<T>): Promise<T> {
-  const resolved = await realpath(await mkdtemp(path.join(tmpdir(), "agents-sources-")));
+  const temporaryDirectory = await mkdtemp(path.join(tmpdir(), "agents-sources-"));
+  const resolved = await realpath(temporaryDirectory);
 
   try {
-    for (const item of ["plugins", "eslint.config.ts", "prettier.config.mjs", "marketplace.toml", "imports.toml"]) {
-      await cp(path.join(root, item), path.join(resolved, item), {
-        recursive: true,
-      });
-    }
+    await copySources(root, resolved);
 
     await syncImports({ root, output: resolved });
 

@@ -7,13 +7,13 @@ const NAME = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 const VERSION = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/;
 const SOURCE_EXCLUSIONS: string[] = [];
 export function marketplaceSourceFilter(pluginsRoot: string) {
-  const excluded = (filename: string) => {
+  const isExcluded = (filename: string) => {
     const relative = path.relative(pluginsRoot, filename).split(path.sep).join("/");
 
     return SOURCE_EXCLUSIONS.some((directory) => relative === directory || relative.startsWith(`${directory}/`));
   };
 
-  return async (filename: string) => !excluded(filename) && !excluded(await realpath(filename));
+  return async (filename: string) => !isExcluded(filename) && !isExcluded(await realpath(filename));
 }
 
 function requireText(value: unknown, label: string) {
@@ -51,7 +51,7 @@ export function inside(root: string, relative: string) {
 async function readDirectory(directory: string, linksWithin: string | undefined, parents: Set<string>) {
   const info = await lstat(directory);
 
-  if (info.isSymbolicLink() && !linksWithin) {
+  if (!linksWithin && info.isSymbolicLink()) {
     throw new Error(`Symbolic links are not supported: ${directory}`);
   }
 
@@ -73,7 +73,7 @@ export async function filesIn(
   prefix = "",
   linksWithin?: string,
   parents = new Set<string>(),
-  filter?: (filename: string) => Promise<boolean>
+  shouldInclude?: (filename: string) => Promise<boolean>
 ): Promise<string[]> {
   let scanned: Awaited<ReturnType<typeof readDirectory>>;
 
@@ -89,11 +89,13 @@ export async function filesIn(
 
   const files: string[] = [];
 
-  for (const entry of scanned.entries.sort((a, b) => a.name.localeCompare(b.name))) {
+  const entries = scanned.entries.toSorted((a, b) => a.name.localeCompare(b.name));
+
+  for (const entry of entries) {
     const relative = path.posix.join(prefix, entry.name);
     const filename = path.join(directory, entry.name);
 
-    if (filter && !(await filter(filename))) {
+    if (shouldInclude && !(await shouldInclude(filename))) {
       continue;
     }
 
@@ -114,7 +116,7 @@ export async function filesIn(
     }
 
     if (info.isDirectory()) {
-      files.push(...(await filesIn(filename, relative, linksWithin, scanned.parents, filter)));
+      files.push(...(await filesIn(filename, relative, linksWithin, scanned.parents, shouldInclude)));
     } else if (info.isFile()) {
       files.push(relative);
     }
@@ -123,16 +125,20 @@ export async function filesIn(
   return files;
 }
 
+async function requireNonSymlink(directory: string) {
+  const info = await lstat(directory);
+
+  if (info.isSymbolicLink()) {
+    throw new Error(`Symbolic links are not supported: ${directory}`);
+  }
+}
+
 export async function checkOutputParents(root: string, relative: string) {
   let directory = path.dirname(inside(root, relative));
 
   while (directory !== root) {
     try {
-      const resolvedValue2 = await lstat(directory);
-
-      if (resolvedValue2.isSymbolicLink()) {
-        throw new Error(`Symbolic links are not supported: ${directory}`);
-      }
+      await requireNonSymlink(directory);
     } catch (error) {
       if (!(error instanceof Error && "code" in error && error.code === "ENOENT")) {
         throw error;

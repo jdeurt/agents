@@ -4,14 +4,65 @@ import { readFile, writeFile } from "./io.ts";
 import { EXECUTABLE_BITS } from "./file-modes.ts";
 import type { ExternalImport } from "./types.ts";
 import { filesIn } from "./build-files.ts";
+import { jsonRecord } from "./validation.ts";
 import path from "node:path";
 
 const CODE = /\.(?:[cm]?[jt]sx?|sh|bash|zsh|fish|py|rb|pl|php|ps1|bat|cmd|exe|dll|so|dylib|wasm)$/i;
+const extensions = z.record(z.string(), z.unknown());
 const surfaceSchema = z.looseObject({
-  extensions: z.optional(z.record(z.string(), z.unknown())),
+  extensions: z.optional(extensions),
   hooks: z.optional(z.unknown()),
   mcpServers: z.optional(z.unknown()),
 });
+
+function restrictSurface(
+  surface: z.infer<typeof surfaceSchema>,
+  file: string,
+  entry: ExternalImport,
+  omitted: string[]
+) {
+  if (!entry.hooks && surface.hooks !== undefined) {
+    delete surface.hooks;
+    omitted.push(`${file}: hooks`);
+  }
+
+  // Local MCP commands are executable entrypoints, including inline commands.
+  // Require an explicit script policy AND local_mcp opt-in.
+  if (!entry.local_mcp && Array.isArray(surface.mcpServers)) {
+    delete surface.mcpServers;
+    omitted.push(`${file}: referenced MCP configurations`);
+  }
+
+  if (
+    !entry.local_mcp &&
+    typeof surface.mcpServers === "string" &&
+    !["./.mcp.json", "./mcp.json", ".mcp.json", "mcp.json"].includes(surface.mcpServers)
+  ) {
+    delete surface.mcpServers;
+    omitted.push(`${file}: custom MCP configuration`);
+  }
+
+  const servers = surface.mcpServers ?? (file === ".mcp.json" || file === "mcp.json" ? surface : undefined);
+
+  if (!servers || typeof servers !== "object" || entry.local_mcp) {
+    return;
+  }
+
+  const entries = Object.entries(jsonRecord.parse(servers));
+
+  for (const [name, server] of entries) {
+    if (!(
+      server &&
+      typeof server === "object" &&
+      ("command" in server || ("type" in server && server.type === "stdio"))
+    )) {
+      continue;
+    }
+
+    Reflect.deleteProperty(servers, name);
+    omitted.push(`${file}: local MCP ${name}`);
+  }
+}
 
 async function restrictManifests(directory: string, entry: ExternalImport, files: string[], omitted: string[]) {
   for (const file of [
@@ -25,48 +76,13 @@ async function restrictManifests(directory: string, entry: ExternalImport, files
       continue;
     }
 
-    const value = surfaceSchema.parse(JSON.parse(await readFile(path.join(directory, file), "utf8")));
+    const source = await readFile(path.join(directory, file), "utf8");
+    const value = surfaceSchema.parse(JSON.parse(source));
     const extension = value.extensions?.["com.openai"];
     const surfaces = extension === undefined ? [value] : [value, surfaceSchema.parse(extension)];
 
     for (const surface of surfaces) {
-      if (!entry.hooks && surface.hooks !== undefined) {
-        delete surface.hooks;
-        omitted.push(`${file}: hooks`);
-      }
-
-      // Local MCP commands are executable entrypoints, including inline commands.
-      // Require an explicit script policy AND local_mcp opt-in.
-      if (!entry.local_mcp && Array.isArray(surface.mcpServers)) {
-        delete surface.mcpServers;
-        omitted.push(`${file}: referenced MCP configurations`);
-      }
-
-      if (
-        !entry.local_mcp &&
-        typeof surface.mcpServers === "string" &&
-        !["./.mcp.json", "./mcp.json", ".mcp.json", "mcp.json"].includes(surface.mcpServers)
-      ) {
-        delete surface.mcpServers;
-        omitted.push(`${file}: custom MCP configuration`);
-      }
-
-      const servers = surface.mcpServers ?? (file === ".mcp.json" || file === "mcp.json" ? surface : undefined);
-
-      if (servers && typeof servers === "object" && !entry.local_mcp) {
-        for (const [name, server] of Object.entries(z.record(z.string(), z.unknown()).parse(servers))) {
-          if (!(
-            server &&
-            typeof server === "object" &&
-            ("command" in server || ("type" in server && server.type === "stdio"))
-          )) {
-            continue;
-          }
-
-          Reflect.deleteProperty(servers, name);
-          omitted.push(`${file}: local MCP ${name}`);
-        }
-      }
+      restrictSurface(surface, file, entry, omitted);
     }
 
     await writeFile(path.join(directory, file), JSON.stringify(value, undefined, 2) + "\n");
@@ -88,16 +104,16 @@ export async function applyImportPolicy(directory: string, entry: ExternalImport
   const omitted: string[] = [];
 
   for (const file of files) {
-    if (path.basename(file) === "SKILL.md" || file === "UPSTREAM-LICENSE") {
+    if (file === "UPSTREAM-LICENSE" || path.basename(file) === "SKILL.md") {
       continue;
     }
 
     const info = await lstat(path.join(directory, file));
     const shebang = await Bun.file(path.join(directory, file)).slice(0, 2).text();
-    const script =
+    const isScript =
       shebang === "#!" || CODE.test(file) || Boolean(info.mode & EXECUTABLE_BITS) || /(^|\/)(scripts|bin)\//.test(file);
 
-    if (!script || allowed === "all" || allowed.includes(file)) {
+    if (!isScript || allowed === "all" || allowed.includes(file)) {
       continue;
     }
 
@@ -131,7 +147,7 @@ export async function applyImportPolicy(directory: string, entry: ExternalImport
     "This package intentionally omits the following files or executable integrations " +
     "under its imports.toml policy:\n\n";
   const list = omitted
-    .sort((a, b) => a.localeCompare(b))
+    .toSorted((a, b) => a.localeCompare(b))
     .map((file) => `- ${file}`)
     .join("\n");
   const outro =

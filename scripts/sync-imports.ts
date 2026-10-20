@@ -31,9 +31,10 @@ export async function digest(directory: string) {
   const hash = new Bun.CryptoHasher("sha256");
 
   async function walk(dir: string, prefix = ""): Promise<void> {
-    const resolvedValue1 = await readdir(dir);
+    const entries = await readdir(dir);
+    const names = entries.toSorted((a, b) => a.localeCompare(b));
 
-    for (const name of resolvedValue1.sort((a, b) => a.localeCompare(b))) {
+    for (const name of names) {
       const file = path.join(dir, name),
         relative = prefix + name;
       const info = await lstat(file);
@@ -82,7 +83,8 @@ export async function syncImports({
   }
 
   const destinationRoot = output;
-  const temp = await realpath(await mkdtemp(path.join(tmpdir(), "agents-import-")));
+  const temporaryDirectory = await mkdtemp(path.join(tmpdir(), "agents-import-"));
+  const temp = await realpath(temporaryDirectory);
 
   async function stageAndCopy() {
     for (const entry of entries) {

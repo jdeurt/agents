@@ -12,6 +12,22 @@ import { tmpdir } from "node:os";
 import { validateSkillFrontmatter } from "./file-validation.ts";
 import { withImportFixture } from "./import-fixture.ts";
 
+const portablePluginSchema = z.object({
+  name: z.string(),
+  source: z.object({ source: z.string(), path: z.string() }),
+});
+const portableMarketplaceSchema = z.object({ plugins: z.array(portablePluginSchema) });
+const namedPluginSchema = z.object({ name: z.string() });
+const namedMarketplaceSchema = z.object({ plugins: z.array(namedPluginSchema) });
+const dependenciesSchema = z.record(z.string(), z.string());
+const hookDependenciesSchema = z.object({ dependencies: dependenciesSchema });
+const mobbinMcpSchema = z.object({ mobbin: z.object({ url: z.string() }) });
+const bunMcpSchema = z.object({ bun: z.object({ url: z.string() }) });
+const claudeMcpSchema = z.object({ mcpServers: bunMcpSchema });
+const configHeader =
+  "// AGENTS: Do not modify this file unless the user explicitly authorizes the change and specifies which rules to add,\n" +
+  "// remove, or modify. Do not weaken rules to make checks pass.\n";
+
 async function assertImportedJscpdSkills(output: string) {
   for (const name of ["jscpd", "dry-refactoring", "codebase-refactoring", "compare-codebases", "code-migration"]) {
     for (const host of ["codex", "claude"]) {
@@ -34,26 +50,23 @@ test(
     withImportFixture(async () => {
       const output = await mkdtemp(path.join(tmpdir(), "agents-test-"));
 
-      try {
+      async function assertMarketplaceBuild() {
         await syncImports({ check: true });
         await buildMarketplace({ output });
-        const json = async <T>(name: string, schema: z.ZodMiniType<T>): Promise<T> =>
-          schema.parse(JSON.parse(await readFile(path.join(output, name), "utf8")));
+        const json = async <T>(name: string, schema: z.ZodMiniType<T>): Promise<T> => {
+          const contents = await readFile(path.join(output, name), "utf8");
 
-        for await (const file of new Bun.Glob("dist/*/plugins/*/skills/*/SKILL.md").scan(output)) {
+          return schema.parse(JSON.parse(contents));
+        };
+        const skillFiles = new Bun.Glob("dist/*/plugins/*/skills/*/SKILL.md").scan(output);
+
+        for await (const file of skillFiles) {
           await validateSkillFrontmatter(path.join(output, file), {
             harness: z.enum(["claude", "codex"]).parse(file.split("/", 2)[1]),
           });
         }
 
-        const codex = await json(
-          ".agents/plugins/marketplace.json",
-          z.object({
-            plugins: z.array(
-              z.object({ name: z.string(), source: z.object({ source: z.string(), path: z.string() }) })
-            ),
-          })
-        );
+        const codex = await json(".agents/plugins/marketplace.json", portableMarketplaceSchema);
         assert.deepEqual(
           codex.plugins.map((p) => p.name),
           ["jdeurt-design", "jdeurt-engineering", "jdeurt-writing", "jdeurt-meta", "jdeurt-cloudflare"]
@@ -61,10 +74,7 @@ test(
         assert.ok(
           codex.plugins.every((p) => p.source.source === "local" && p.source.path.startsWith("./dist/codex/plugins/"))
         );
-        const resolvedValue1 = await json(
-          ".claude-plugin/marketplace.json",
-          z.object({ plugins: z.array(z.object({ name: z.string() })) })
-        );
+        const resolvedValue1 = await json(".claude-plugin/marketplace.json", namedMarketplaceSchema);
         assert.deepEqual(
           resolvedValue1.plugins.map((p) => p.name),
           ["jdeurt-design", "jdeurt-engineering", "jdeurt-writing", "jdeurt-meta", "jdeurt-cloudflare"]
@@ -73,10 +83,7 @@ test(
           path.join(output, "dist/codex/plugins/writing/skills/writing-clearly-and-concisely/elements-of-style.md")
         );
         await readFile(path.join(output, "dist/claude/plugins/writing/skills/writing-clearly-and-concisely/SKILL.md"));
-        const resolvedValue4 = await json(
-          "dist/codex/plugins/design/.mcp.json",
-          z.object({ mobbin: z.object({ url: z.string() }) })
-        );
+        const resolvedValue4 = await json("dist/codex/plugins/design/.mcp.json", mobbinMcpSchema);
         assert.equal(resolvedValue4.mobbin.url, "https://api.mobbin.com/mcp");
         const engineering = await json(
           "dist/codex/plugins/engineering/.codex-plugin/plugin.json",
@@ -85,7 +92,7 @@ test(
         assert.equal(engineering.mcpServers, "./.mcp.json");
         const hookDependencies = await json(
           "dist/codex/plugins/engineering/hook-deps/package.json",
-          z.object({ dependencies: z.record(z.string(), z.string()) })
+          hookDependenciesSchema
         );
         assert.equal(hookDependencies.dependencies["eslint-plugin-unicorn"], "78.0.0");
         assert.equal(
@@ -96,20 +103,23 @@ test(
         for (const name of ["eslint.config.ts", "prettier.config.mjs"]) {
           const source = await readFile(path.join(process.cwd(), name), "utf8");
 
+          if (name === "eslint.config.ts") {
+            assert.ok(source.startsWith(configHeader));
+          }
+
           for (const host of ["codex", "claude"]) {
-            assert.equal(await readFile(path.join(output, `dist/${host}/plugins/engineering/${name}`), "utf8"), source);
+            const published = await readFile(path.join(output, `dist/${host}/plugins/engineering/${name}`), "utf8");
+            assert.equal(published, source);
+
+            if (name === "eslint.config.ts") {
+              assert.ok(published.startsWith(configHeader));
+            }
           }
         }
 
-        const bunMcp = await json(
-          "dist/codex/plugins/engineering/.mcp.json",
-          z.object({ bun: z.object({ url: z.string() }) })
-        );
+        const bunMcp = await json("dist/codex/plugins/engineering/.mcp.json", bunMcpSchema);
         assert.equal(bunMcp.bun.url, "https://bun.com/docs/mcp");
-        const claudeMcp = await json(
-          "dist/claude/plugins/engineering/.mcp.json",
-          z.object({ mcpServers: z.object({ bun: z.object({ url: z.string() }) }) })
-        );
+        const claudeMcp = await json("dist/claude/plugins/engineering/.mcp.json", claudeMcpSchema);
         assert.equal(claudeMcp.mcpServers.bun.url, "https://bun.com/docs/mcp");
 
         await assertImportedJscpdSkills(output);
@@ -131,6 +141,10 @@ test(
         await assert.rejects(readFile(path.join(output, "dist/stale.txt")), {
           code: "ENOENT",
         });
+      }
+
+      try {
+        await assertMarketplaceBuild();
       } finally {
         await rm(output, { recursive: true, force: true });
       }

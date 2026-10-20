@@ -13,7 +13,8 @@ const root = await realpath(process.cwd());
 const [command, ...args] = process.argv.slice(2);
 const entries = await readImports(root);
 await validateMarkers(root, entries);
-const registry = parseRegistry(Bun.TOML.parse(await readFile(path.join(root, "marketplace.toml"), "utf8")));
+const registryContents = await readFile(path.join(root, "marketplace.toml"), "utf8");
+const registry = parseRegistry(Bun.TOML.parse(registryContents));
 const saveRegistry = async () => {
   const contents = Bun.TOML.stringify(registry);
   await writeFile(path.join(root, "marketplace.toml"), contents);

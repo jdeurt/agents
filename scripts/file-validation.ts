@@ -2,11 +2,16 @@ import * as z from "zod/mini";
 import Ajv from "ajv";
 import path from "node:path";
 import { readFile } from "./io.ts";
-const schema = z
-  .looseObject({ properties: z.record(z.string(), z.unknown()) })
-  .parse(JSON.parse(await readFile(new URL("skill-frontmatter.schema.json", import.meta.url), "utf8")));
+const schemaSource = await readFile(new URL("skill-frontmatter.schema.json", import.meta.url), "utf8");
+const properties = z.record(z.string(), z.unknown());
+const schema = z.looseObject({ properties }).parse(JSON.parse(schemaSource));
+const metadataRecord = z.record(z.string(), z.string());
+const metadataSchema = z.looseObject({
+  name: z.string(),
+  metadata: z.optional(metadataRecord),
+});
 const ajv = new Ajv({ allErrors: true });
-const validateSharedMetadata = ajv.compile(schema);
+const isSharedMetadataValid = ajv.compile(schema);
 const nativeMetadataValidators = {
   claude: ajv.compile({
     ...schema,
@@ -15,7 +20,7 @@ const nativeMetadataValidators = {
       "disable-model-invocation": { type: "boolean" },
     },
   }),
-  codex: validateSharedMetadata,
+  codex: isSharedMetadataValid,
 };
 
 export function parseSkillFrontmatter(source: string) {
@@ -39,16 +44,11 @@ export function parseSkillFrontmatter(source: string) {
 
 export async function validateSkillFrontmatter(filename: string, { harness }: { harness?: "claude" | "codex" } = {}) {
   const { document } = parseSkillFrontmatter(await readFile(filename, "utf8"));
-  const metadata = z
-    .looseObject({
-      name: z.string(),
-      metadata: z.optional(z.record(z.string(), z.string())),
-    })
-    .parse(document);
-  const validateMetadata = harness === undefined ? validateSharedMetadata : nativeMetadataValidators[harness];
+  const metadata = metadataSchema.parse(document);
+  const isMetadataValid = harness === undefined ? isSharedMetadataValid : nativeMetadataValidators[harness];
 
-  if (!validateMetadata(metadata)) {
-    throw new Error(ajv.errorsText(validateMetadata.errors));
+  if (!isMetadataValid(metadata)) {
+    throw new Error(ajv.errorsText(isMetadataValid.errors));
   }
 
   if (metadata.name !== path.basename(path.dirname(filename))) {
