@@ -36,9 +36,9 @@ async function prepareAsdFixture(upstream: string) {
   await writeFile(path.join(upstream, ASD_STE100_LINTER_PATH), ASD_STE100_LINTER_SOURCE);
   await writeFile(path.join(upstream, "LICENSE"), FIXTURE_LICENSE);
   initializeFixtureRepository(upstream);
-  process.env.GIT_CONFIG_COUNT = "4";
-  process.env.GIT_CONFIG_KEY_3 = gitRewrite;
-  process.env.GIT_CONFIG_VALUE_3 = ASD_STE100_REPOSITORY;
+  process.env["GIT_CONFIG_COUNT"] = "4";
+  process.env["GIT_CONFIG_KEY_3"] = gitRewrite;
+  process.env["GIT_CONFIG_VALUE_3"] = ASD_STE100_REPOSITORY;
 }
 
 /**
@@ -96,13 +96,13 @@ async function prepareFixture(upstream: string) {
   }
 
   initializeFixtureRepository(upstream);
-  process.env.GIT_CONFIG_COUNT = "3";
-  process.env.GIT_CONFIG_KEY_0 = gitRewrite;
-  process.env.GIT_CONFIG_VALUE_0 = "https://github.com/shadcn-ui/ui.git";
-  process.env.GIT_CONFIG_KEY_1 = gitRewrite;
-  process.env.GIT_CONFIG_VALUE_1 = "https://github.com/cloudflare/skills.git";
-  process.env.GIT_CONFIG_KEY_2 = gitRewrite;
-  process.env.GIT_CONFIG_VALUE_2 = "https://github.com/kucherenko/jscpd.git";
+  process.env["GIT_CONFIG_COUNT"] = "3";
+  process.env["GIT_CONFIG_KEY_0"] = gitRewrite;
+  process.env["GIT_CONFIG_VALUE_0"] = "https://github.com/shadcn-ui/ui.git";
+  process.env["GIT_CONFIG_KEY_1"] = gitRewrite;
+  process.env["GIT_CONFIG_VALUE_1"] = "https://github.com/cloudflare/skills.git";
+  process.env["GIT_CONFIG_KEY_2"] = gitRewrite;
+  process.env["GIT_CONFIG_VALUE_2"] = "https://github.com/kucherenko/jscpd.git";
 }
 
 /**

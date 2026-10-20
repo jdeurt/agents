@@ -216,7 +216,8 @@ function parseOptions(args: string[]) {
     if (args[i] === "--check") {
       options.check = true;
     } else if (next && args[i] === "--output" && !next.startsWith("--")) {
-      options.output = path.resolve(args[++i]);
+      options.output = path.resolve(next);
+      i++;
     } else {
       throw new Error("Usage: bun scripts/build-marketplace.ts [--check] [--output directory]");
     }

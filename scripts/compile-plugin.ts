@@ -64,6 +64,26 @@ function requireHarnessOutput(outputs: HarnessOutput[], harness: string, pluginN
 }
 
 /**
+Restore a command server's working directory in compiled Codex output.
+@param server - Compiled server record, if the compiler retained it.
+@param directory - Source working directory with an optional plugin-root placeholder.
+@param pluginName - Plugin name to identify missing output.
+@param serverName - Server name to identify missing output.
+*/
+function restoreServerDirectory(
+  server: Record<string, unknown> | undefined,
+  directory: string,
+  pluginName: string,
+  serverName: string
+) {
+  if (!server) {
+    throw new Error(`${pluginName}: missing compiled MCP server ${serverName}`);
+  }
+
+  server["cwd"] = directory.replaceAll(values.PLUGIN_ROOT_PLACEHOLDER, ".");
+}
+
+/**
 Normalize compiled manifests, skill policies, and server paths for publication.
 @param root - Source root used to validate compiler output paths.
 @param plugin - Plugin metadata and harness settings.
@@ -117,7 +137,7 @@ function collectCompiledFiles(
 
         for (const [name, server] of sourceServers) {
           if ("command" in server && server.command && server.cwd) {
-            servers[name].cwd = server.cwd.replaceAll(values.PLUGIN_ROOT_PLACEHOLDER, ".");
+            restoreServerDirectory(servers[name], server.cwd, plugin.name, name);
           }
         }
 

@@ -39,7 +39,7 @@ bun add --dev --exact eslint@10.13.0 @eslint/js@10.0.1 @stylistic/eslint-plugin@
 
 These versions match the marketplace source's resolved dependencies. ESLint loads the TypeScript configuration through `jiti`. Keep `jiti` even for a JavaScript-only project. Install runtime type declarations needed by the project, such as Bun's types for Bun code. When updating versions, check the imported presets and APIs against the installed packages and run the complete project checks.
 
-Provide a project `tsconfig.json` that includes every owned JavaScript and TypeScript source file. Enable strict null checks and `allowJs` so the typed ESLint presets can inspect JavaScript too. Match the project's runtime and module system. For a new Bun project, start with:
+Provide a project `tsconfig.json` that includes every owned JavaScript and TypeScript source file. Enable `strict`, `allowJs`, and `checkJs` to check owned JavaScript and TypeScript. Type-aware ESLint rules supplement the compiler checks. Match the project's runtime and module system. For a new Bun project, start with:
 
 ```json
 {
@@ -49,6 +49,7 @@ Provide a project `tsconfig.json` that includes every owned JavaScript and TypeS
     "moduleResolution": "Bundler",
     "allowImportingTsExtensions": true,
     "allowJs": true,
+    "checkJs": true,
     "strict": true,
     "noEmit": true
   },
@@ -73,6 +74,8 @@ Run automatic fixes only within the authorized source scope. Inspect the diff. R
 
 The configuration uses recommended JavaScript and Unicorn rules with TypeScript ESLint strict and stylistic type-checked presets. React files also use React Hooks and React Doctor presets. It preserves inherited rule severities and defaults unless the source config explicitly overrides them.
 
+The shared policy disables `unicorn/no-null` and permits `null`. Compiler strict null checks still require safe handling of nullable values.
+
 Complexity warns above 20. Try complexity warns above 1. The zero-warning command makes both rules enforceable. TypeScript files use the TypeScript equivalents of `no-use-before-define`, `no-magic-numbers`, and `no-shadow`.
 
 Prettier uses double quotes, semicolons, two-space indentation, 120 columns, ES5 trailing commas, and LF endings. Nonconflicting ESLint Stylistic recommended rules remain active. The config lists each omitted rule and its concrete Prettier conflict. Leave a blank line after the final import before a non-import statement. Leave blank lines between class members, including single-line methods, and around class declarations. Keep TypeScript overload signatures together with their implementation.
@@ -83,7 +86,9 @@ Use descriptions that explain the caller's contract. Keep type annotations in Ty
 
 Direct void-returning routines and constructors do not require return descriptions. Declaration-only signatures require return descriptions for value annotations, including named aliases. Keep shared documentation with a stacked overload group. Preserve the inherited starless documentation-comment format.
 
-`jdeurt/const-on-top` requires both `const` and `let` declarations before executable statements in their program or block scope. Leading imports, type declarations, function declarations, and variable declarations can share the declaration prefix. Consecutive declarations of the same kind may stay together. Leave a blank line after the final `const` or `let` before another kind of declaration or other code. Loop-header declarations remain valid.
+`jdeurt/const-on-top` requires both `const` and `let` declarations before executable statements in their program, block, or static-block scope. Imports, types, functions, and variables can share the declaration prefix. Runtime declarations may use either `const` or `let` first. After switching kinds, they cannot return to the earlier kind. Ambient `declare` bindings do not select a runtime group. Each nested scope tracks its own groups, and loop-header declarations remain valid.
+
+The rule enforces declaration order only, regardless of whitespace. The separate `@stylistic/padding-line-between-statements` rule controls blank lines.
 
 Preserve evaluation order and dependencies when restructuring. The rule deliberately does not automatically hoist initializers.
 

@@ -75,7 +75,7 @@ export function applyInvocationPolicies(
   const files = new Map(output.files.map((file) => [file.path, file]));
 
   for (const [name, metadata] of skills) {
-    const isExplicit = metadata.metadata?.invocation === "explicit";
+    const isExplicit = metadata.metadata?.["invocation"] === "explicit";
 
     const skillPath = `skills/${name}/SKILL.md`;
     const skill = requireSkill(files.get(skillPath), harness, name);

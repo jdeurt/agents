@@ -388,8 +388,10 @@ publishReport("reports/summary.json");
 ### 2B. Keep declarations in the right scope
 
 Keep constant and mutable declarations in the declaration prefix of their scope.
+Keep runtime declarations of each kind in one group. Either kind may come first, but do not return to that kind after switching.
+Ambient declarations do not select a runtime group. Each nested scope has its own groups.
 Initializers can execute work during declaration. Preserve their timing when you reorganize declarations.
-Put a blank line between the final declaration in a group and the next executable statement.
+Apply the separate spacing requirements in 1C. Declaration order does not depend on whitespace.
 Imports, types, functions, and other variable declarations may precede these declarations.
 Loop-header declarations may remain in the loop header.
 
@@ -406,6 +408,7 @@ Extract cohesive work when required to meet declaration placement while preservi
 **Why:**
 
 A declaration prefix exposes a scope's inputs and local state before its actions.
+Separate declaration groups make transitions between constant and mutable bindings easy to find.
 Blank lines distinguish initialization from later execution.
 Other declarations can establish dependencies without starting that scope's main actions.
 Loop-header declarations keep iteration state within its natural lifetime.

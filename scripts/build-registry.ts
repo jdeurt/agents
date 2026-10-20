@@ -41,10 +41,11 @@ Validate marketplace metadata, plugin identities, versions, and supported harnes
 function validateRegistryFields(registry: Registry) {
   const marketplace = registry.marketplace;
   const names = new Set<string>();
+  const requiredFields: (keyof Registry["marketplace"])[] = ["name", "owner", values.DESCRIPTION];
 
   fields(registry.marketplace, ["name", "display_name", "owner", values.DESCRIPTION], values.MARKETPLACE);
 
-  for (const key of ["name", "owner", values.DESCRIPTION]) {
+  for (const key of requiredFields) {
     requireText(marketplace[key], `marketplace.${key}`);
   }
 
