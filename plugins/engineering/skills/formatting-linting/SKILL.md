@@ -13,7 +13,7 @@ Inspect the project's language, package manager, existing configuration, source 
 
 ## Style across languages
 
-Read [Rules of style](references/style-rules.md) when writing or reviewing code in any language. Apply its legibility, correctness, maintainability, duplication, state, resource, and API principles using the language’s native constructs. The reference explains general concepts with TypeScript examples. Follow its all-on-one-line or one-item-per-line convention independently at each nesting depth; the linter does not enforce every case.
+Read [Rules of style](references/style-rules.md) when writing or reviewing code in any language. Apply its legibility, correctness, maintainability, duplication, state, resource, and API principles using the language’s native constructs. The reference explains general concepts with TypeScript examples. Follow its all-on-one-line or one-item-per-line convention independently at each nesting depth.
 
 ## JavaScript
 

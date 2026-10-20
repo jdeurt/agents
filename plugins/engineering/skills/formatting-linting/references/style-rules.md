@@ -1,14 +1,12 @@
 # Rules of style
 
-Apply these concepts using each language’s native syntax, standard library, and formatter. TypeScript snippets illustrate the ideas; they are independent fragments with application-specific types and named values supplied by their surrounding project. Use equivalent native operations in other languages.
-
-The project’s explicit coding rules and configuration remain authoritative. Tooling may enforce only part of this guide; apply the remaining concepts during implementation and review.
+Use each language’s native syntax and standard library. Examples use TypeScript.
 
 ## Legibility
 
 ### Lay out lists consistently at each depth
 
-For arguments, parameters, object properties, collection items, and similar lists, choose either one line for the whole list or one item per line at that nesting depth. Do not pack several siblings onto one line and continue other siblings on another line. Each nested list chooses independently. This is a style convention that tooling may not enforce in every case. When a formatter retains a mixed list, restructure or wrap the surrounding expression without weakening the formatter rules.
+For arguments, parameters, object properties, collection items, and similar lists, choose either one line for the whole list or one item per line at that nesting depth. Do not pack several siblings onto one line and continue other siblings on another line. Each nested list chooses independently.
 
 **Good:**
 
@@ -37,8 +35,7 @@ function publishReport(
 
 The following layouts mix sibling items across lines and should be avoided.
 
-<!-- prettier-ignore -->
-```ts
+```text
 // Bad: sibling arguments are packed onto multiple lines.
 publish(
   source, destination,
@@ -54,7 +51,7 @@ const mixedOptions = {
 
 ### Use a predictable visual grammar
 
-Use the language formatter consistently: ordinary spaces, aligned nesting, visible operator boundaries, one statement per line, clean comments, a final newline, and no trailing or irregular whitespace. Use a 120-column formatting target where project rules do not specify another width; this target is not a hard maximum for every line.
+Use ordinary spaces, aligned nesting, visible operator boundaries, one statement per line, clear comments, a final newline, and no trailing or irregular whitespace. Aim for lines within 120 columns; allow longer lines where breaking them would reduce clarity.
 
 **Good:**
 
@@ -69,8 +66,7 @@ function calculateTotal(subtotal: number, tax: number) {
 
 **Bad:**
 
-<!-- prettier-ignore -->
-```ts
+```text
 const total=subtotal+tax;return total;
 ```
 
@@ -111,8 +107,7 @@ class Gauge {
 
 **Bad:**
 
-<!-- prettier-ignore -->
-```ts
+```text
 class Counter {
   read() { return this.value; }
   reset() { this.value = 0; }
@@ -141,8 +136,7 @@ for (const item of ordered) {
 
 **Bad:**
 
-<!-- prettier-ignore -->
-```ts
+```text
 publish(serialize(normalize(loadReport())));
 ```
 
@@ -162,8 +156,7 @@ function publishReport() {
 
 **Bad:**
 
-<!-- prettier-ignore -->
-```ts
+```text
 const ready = queue.length > 0;
 
 function thing() {
@@ -175,7 +168,7 @@ function thing() {
 
 ### Name meaningful numbers and strings
 
-Give domain numbers, paths, messages, and other meaningful string values stable names near their owner. The values 0, 1, and 2 may remain inline. Strings of up to 10 characters may remain inline; give longer strings meaningful names. Named static literal data is allowed. Grammar positions such as property keys, module sources, literal types, and directives are exempt. Use the language’s convention for named constants even when it does not provide immutable bindings.
+Give domain numbers, paths, messages, and other meaningful string values stable names near their owner. The values 0, 1, and 2 may remain inline. Strings of up to 10 characters may remain inline; give longer strings meaningful names. Named static literal data is allowed. Use literal text for property keys, module sources, literal types, and language directives. Use the language’s convention for named constants even when it does not provide immutable bindings.
 
 **Good:**
 
@@ -190,8 +183,7 @@ notify(SAVED_MESSAGE);
 
 **Bad:**
 
-<!-- prettier-ignore -->
-```ts
+```text
 writeReport("reports/summary.json", 5);
 notify("Report saved");
 ```
@@ -218,8 +210,7 @@ function loadReport(isReady: boolean) {
 
 **Bad:**
 
-<!-- prettier-ignore -->
-```ts
+```text
 function publishReport() {
   logStart();
   const report = readReport();
@@ -242,8 +233,7 @@ consume(result);
 
 **Bad:**
 
-<!-- prettier-ignore -->
-```ts
+```text
 const result = normalize(source);
 const source = loadSource();
 ```
@@ -262,8 +252,7 @@ function double(value: number) {
 
 **Bad:**
 
-<!-- prettier-ignore -->
-```ts
+```text
 function double(value: number) {
   value * 2;
 }
@@ -283,8 +272,7 @@ if (isQueued || isRetrying) {
 
 **Bad:**
 
-<!-- prettier-ignore -->
-```ts
+```text
 const options = { isReady: true, isReady: false };
 ```
 
@@ -306,8 +294,7 @@ if (isRemote) {
 
 **Bad:**
 
-<!-- prettier-ignore -->
-```ts
+```text
 if (isRemote) {
   upload(serialize(report));
 } else {
@@ -329,8 +316,7 @@ function formatNames(names: string[], separator = DEFAULT_SEPARATOR) {
 
 **Bad:**
 
-<!-- prettier-ignore -->
-```ts
+```text
 const joined = names.reduce(
   (text, name, index) => text + (index ? SEPARATOR : "") + name,
   ""
@@ -350,15 +336,14 @@ import { saveReport } from "./storage.ts";
 
 **Bad:**
 
-<!-- prettier-ignore -->
-```ts
+```text
 import { saveReport } from "./storage.ts";
 import { saveReport as saveAgain } from "./storage.ts";
 ```
 
-### Keep enforcement actionable
+### Make maintenance notes actionable
 
-Use precise, justified suppressions only when authorized, and make TODO expiry conditions actionable. Do not bypass lint by renaming recognized APIs or wrapping unsupported constructs. Validate tool and compiler settings against supported configuration.
+Give TODO comments a specific task and a clear condition for completing or removing them.
 
 **Good:**
 
@@ -369,11 +354,9 @@ const adapter = createCompatibilityAdapter();
 
 **Bad:**
 
-<!-- prettier-ignore -->
-```ts
-// Disable every diagnostic for this file.
+```text
 // TODO: Fix this someday.
-const result = unsafeOperation();
+const adapter = createCompatibilityAdapter();
 ```
 
 ## Conditions and state
@@ -394,8 +377,7 @@ function canPublish(count: number, hasPermission: boolean) {
 
 **Bad:**
 
-<!-- prettier-ignore -->
-```ts
+```text
 const isAvailable = count > 0 ? (hasPermission ? true : false) : false;
 ```
 
@@ -423,8 +405,7 @@ function publishValidItems(isReady: boolean, items: Item[]) {
 
 **Bad:**
 
-<!-- prettier-ignore -->
-```ts
+```text
 function publishReport() {
   return report;
   publish(report);
@@ -445,8 +426,7 @@ for (const item of items) {
 
 **Bad:**
 
-<!-- prettier-ignore -->
-```ts
+```text
 for (const item of items) {
   items.push(transform(item));
 }
@@ -465,8 +445,7 @@ const nextState = { ...state, isReady: true };
 
 **Bad:**
 
-<!-- prettier-ignore -->
-```ts
+```text
 function orderItems(items: Item[]) {
   items.sort(compareItems);
   return items;
@@ -491,8 +470,7 @@ export function publishTotal(total: number) {
 
 **Bad:**
 
-<!-- prettier-ignore -->
-```ts
+```text
 export function calculateTotal(items: Item[]) {
   output.write(items);
   return sumPrices(items);
@@ -513,8 +491,7 @@ function toggle(state: State): State {
 
 **Bad:**
 
-<!-- prettier-ignore -->
-```ts
+```text
 function toggle(state: State): State {
   state.isEnabled = !state.isEnabled;
   return state;
@@ -535,8 +512,7 @@ function makeView(timestamp: number, seed: number) {
 
 **Bad:**
 
-<!-- prettier-ignore -->
-```ts
+```text
 function makeView() {
   return buildView(Date.now(), Math.random());
 }
@@ -562,8 +538,7 @@ function resize(width: number, height: number) {
 
 **Bad:**
 
-<!-- prettier-ignore -->
-```ts
+```text
 const numbers = textValues.map(parseInt);
 ```
 
@@ -583,8 +558,7 @@ const readyItems = items.filter((item) => isReady(item));
 
 **Bad:**
 
-<!-- prettier-ignore -->
-```ts
+```text
 const readyItems = items.filter((item) => {
   isReady(item);
 });
@@ -610,8 +584,7 @@ function publishMatch(items: Item[]) {
 
 **Bad:**
 
-<!-- prettier-ignore -->
-```ts
+```text
 const item = items.find(matchesRequest);
 
 consume(item!.value);
@@ -619,7 +592,7 @@ consume(item!.value);
 
 ### Validate unknown values instead of bypassing types
 
-Keep unknown input unknown until a runtime check proves its shape. Avoid unchecked narrowing, chained assertions, unsafe calls/member access/returns, misleading broad function types, and suppression directives that conceal missing validation. Type annotations alone do not validate untrusted runtime input.
+Keep unknown input unknown until a runtime check proves its shape. Avoid unchecked narrowing, chained assertions, unsafe calls/member access/returns, and misleading broad function types. Type annotations alone do not validate untrusted runtime input.
 
 **Good:**
 
@@ -635,8 +608,7 @@ function readName(value: unknown): string {
 
 **Bad:**
 
-<!-- prettier-ignore -->
-```ts
+```text
 function readName(value: unknown): string {
   return value as string;
 }
@@ -656,8 +628,7 @@ function first<T>(items: T[]): T | undefined {
 
 **Bad:**
 
-<!-- prettier-ignore -->
-```ts
+```text
 type Status = "ready" | "ready";
 
 function identity<T>(value: string): string {
@@ -683,8 +654,7 @@ class Counter {
 
 **Bad:**
 
-<!-- prettier-ignore -->
-```ts
+```text
 class Counter {
   get value() {
     return this.value;
@@ -712,8 +682,7 @@ try {
 
 **Bad:**
 
-<!-- prettier-ignore -->
-```ts
+```text
 const client = new Client();
 
 await client.execute();
@@ -736,8 +705,7 @@ try {
 
 **Bad:**
 
-<!-- prettier-ignore -->
-```ts
+```text
 try {
   await saveReport();
 } catch (error) {
@@ -765,8 +733,7 @@ async function loadReport() {
 
 **Bad:**
 
-<!-- prettier-ignore -->
-```ts
+```text
 items.forEach(async (item) => {
   await saveItem(item);
 });
@@ -786,8 +753,7 @@ renderDashboard(users, projects);
 
 **Bad:**
 
-<!-- prettier-ignore -->
-```ts
+```text
 const users = await loadUsers();
 const projects = await loadProjects();
 
@@ -812,8 +778,7 @@ try {
 
 **Bad:**
 
-<!-- prettier-ignore -->
-```ts
+```text
 const subscription = source.subscribe(onValue);
 
 await consumeSource();
@@ -838,8 +803,7 @@ try {
 
 **Bad:**
 
-<!-- prettier-ignore -->
-```ts
+```text
 target.addEventListener(EVENT_TYPE, () => onEvent());
 target.removeEventListener(EVENT_TYPE, () => onEvent());
 ```
@@ -860,8 +824,7 @@ const largest = Math.max(...sizes);
 
 **Bad:**
 
-<!-- prettier-ignore -->
-```ts
+```text
 const hasReadyItem = items.filter(isReady).length > 0;
 ```
 
@@ -879,8 +842,7 @@ const summary = names.join(SEPARATOR);
 
 **Bad:**
 
-<!-- prettier-ignore -->
-```ts
+```text
 const sortedSizes = sizes.toSorted();
 const value = entries[requestedKey];
 ```
@@ -898,8 +860,7 @@ const isReport = filename.endsWith(REPORT_SUFFIX);
 
 **Bad:**
 
-<!-- prettier-ignore -->
-```ts
+```text
 const normalized = value.replace(OLD_SEPARATOR, NEW_SEPARATOR);
 const message = `${record}`;
 ```
@@ -917,8 +878,7 @@ const text = decoder.decode(chunk, { stream: true });
 
 **Bad:**
 
-<!-- prettier-ignore -->
-```ts
+```text
 const firstCharacter = text[0];
 const chunkText = new TextDecoder().decode(chunk);
 ```
@@ -940,8 +900,7 @@ if (!Number.isSafeInteger(count)) {
 
 **Bad:**
 
-<!-- prettier-ignore -->
-```ts
+```text
 if (value === NaN) {
   rejectValue();
 }
@@ -960,8 +919,7 @@ const bytes = new Uint8Array(view.buffer, view.byteOffset, view.byteLength);
 
 **Bad:**
 
-<!-- prettier-ignore -->
-```ts
+```text
 const snapshot = JSON.parse(JSON.stringify(state));
 const bytes = new Uint8Array(view.buffer);
 ```
@@ -986,8 +944,7 @@ if (destination.protocol !== HTTPS_PROTOCOL) {
 
 **Bad:**
 
-<!-- prettier-ignore -->
-```ts
+```text
 database.query(`${QUERY_PREFIX}${requestedId}`);
 eval(input);
 ```
@@ -1016,8 +973,7 @@ async function loadData(endpoint: string, signal: AbortSignal) {
 
 **Bad:**
 
-<!-- prettier-ignore -->
-```ts
+```text
 const response = await fetch(`${endpoint}?name=${name}`);
 const data = await response.json();
 ```
@@ -1038,8 +994,7 @@ for (const request of requests) {
 
 **Bad:**
 
-<!-- prettier-ignore -->
-```ts
+```text
 for (const request of requests) {
   const user = users.find((item) => item.id === request.userId);
   serve(request, user);
@@ -1059,8 +1014,7 @@ const report = await cache.getOrInsertComputed(cacheKey, loadReport);
 
 **Bad:**
 
-<!-- prettier-ignore -->
-```ts
+```text
 const cacheKey = accountId;
 const report = await cache.getOrInsertComputed(cacheKey, () => loadReport(accountId, locale));
 ```
@@ -1083,8 +1037,7 @@ const confirmAction = {
 
 **Bad:**
 
-<!-- prettier-ignore -->
-```ts
+```text
 const confirmAction = {
   label: "",
   accessibleName: "",
@@ -1109,8 +1062,7 @@ const animation = {
 
 **Bad:**
 
-<!-- prettier-ignore -->
-```ts
+```text
 const animation = {
   from: 0,
   to: 1,
@@ -1134,8 +1086,7 @@ function advance(deltaSeconds: number) {
 
 **Bad:**
 
-<!-- prettier-ignore -->
-```ts
+```text
 function advance() {
   mixer.update(1);
   renderer.render(scene, camera);
