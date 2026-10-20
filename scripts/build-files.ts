@@ -1,45 +1,47 @@
 import { lstat, readdir, realpath, rmdir, stat } from "node:fs/promises";
 import type { Dirent } from "node:fs";
-import type { Registry } from "./types.ts";
 import path from "node:path";
-const HARNESSES = new Set(["claude", "codex"]);
-const NAME = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
-const VERSION = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/;
+
+export { validateRegistry } from "./build-registry.ts";
+
 const SOURCE_EXCLUSIONS: string[] = [];
+
+/**
+Create a filter that excludes restricted source paths and their link targets.
+@param pluginsRoot - Root directory for source exclusion checks.
+@returns An asynchronous predicate that accepts source paths allowed for publication.
+*/
 export function marketplaceSourceFilter(pluginsRoot: string) {
-  const excluded = (filename: string) => {
+  const isExcluded = (filename: string) => {
     const relative = path.relative(pluginsRoot, filename).split(path.sep).join("/");
 
     return SOURCE_EXCLUSIONS.some((directory) => relative === directory || relative.startsWith(`${directory}/`));
   };
 
-  return async (filename: string) => !excluded(filename) && !excluded(await realpath(filename));
+  return async (filename: string) => !isExcluded(filename) && !isExcluded(await realpath(filename));
 }
 
-function requireText(value: unknown, label: string) {
-  if (typeof value !== "string" || !value.trim()) {
-    throw new Error(`${label} must be a non-empty string`);
-  }
-}
-
-function fields(value: unknown, allowed: string[], label: string): asserts value is Record<string, unknown> {
-  if (!value || typeof value !== "object" || Array.isArray(value)) {
-    throw new Error(`${label} must be a table`);
-  }
-
-  for (const key of Object.keys(value)) {
-    if (!allowed.includes(key)) {
-      throw new Error(`${label}: unknown field ${key}`);
-    }
-  }
-}
-
-export function inside(root: string, relative: string) {
+/**
+Reject absolute paths and parent traversal before output path resolution.
+@param relative - Generated path relative to the output root.
+@returns The validated relative path.
+*/
+function requireSafeRelative(relative: string) {
   if (typeof relative !== "string" || path.isAbsolute(relative) || relative.split(/[\\/]/).includes("..")) {
     throw new Error(`Unsafe generated path: ${relative}`);
   }
 
-  const resolved = path.resolve(root, relative);
+  return relative;
+}
+
+/**
+Resolve a generated path and reject paths outside its root.
+@param root - Absolute root directory that must contain the result.
+@param relative - Generated path relative to that root.
+@returns The absolute path inside the root.
+*/
+export function inside(root: string, relative: string) {
+  const resolved = path.resolve(root, requireSafeRelative(relative));
 
   if (resolved === root || !resolved.startsWith(`${root}${path.sep}`)) {
     throw new Error(`Unsafe generated path: ${relative}`);
@@ -48,14 +50,31 @@ export function inside(root: string, relative: string) {
   return resolved;
 }
 
-async function readDirectory(directory: string, linksWithin: string | undefined, parents: Set<string>) {
+/**
+Resolve a source directory after checking the symbolic link policy.
+@param directory - Directory to inspect.
+@param linksWithin - Permitted source root, or undefined to reject symbolic links.
+@returns The resolved directory path.
+*/
+async function checkedDirectoryPath(directory: string, linksWithin: string | undefined) {
   const info = await lstat(directory);
 
-  if (info.isSymbolicLink() && !linksWithin) {
+  if (!linksWithin && info.isSymbolicLink()) {
     throw new Error(`Symbolic links are not supported: ${directory}`);
   }
 
-  const resolved = await realpath(directory);
+  return realpath(directory);
+}
+
+/**
+Read source entries after checking containment and symbolic link cycles.
+@param directory - Source directory to read.
+@param linksWithin - Permitted source root, or undefined to reject symbolic links.
+@param parents - Resolved ancestor paths used to detect cycles.
+@returns The directory entries and the ancestor set extended with this directory.
+*/
+async function readDirectory(directory: string, linksWithin: string | undefined, parents: Set<string>) {
+  const resolved = await checkedDirectoryPath(directory, linksWithin);
 
   if (linksWithin && resolved !== linksWithin && !resolved.startsWith(`${linksWithin}${path.sep}`)) {
     throw new Error(`Source resource leaves the plugin sources: ${directory}`);
@@ -68,13 +87,93 @@ async function readDirectory(directory: string, linksWithin: string | undefined,
   return { entries: await readdir(directory, { withFileTypes: true }), parents: new Set([...parents, resolved]) };
 }
 
+/**
+Resolve a symbolic link and reject targets outside the permitted source root.
+@param filename - Symbolic link to resolve.
+@param linksWithin - Root directory that must contain the link target.
+@returns The resolved target path.
+*/
+async function containedLinkPath(filename: string, linksWithin: string) {
+  const resolved = await realpath(filename);
+
+  if (!resolved.startsWith(`${linksWithin}${path.sep}`)) {
+    throw new Error(`Source resource leaves the plugin sources: ${filename}`);
+  }
+
+  return resolved;
+}
+
+/**
+Reject prohibited symbolic links before resolving their contained targets.
+@param filename - Symbolic link to inspect.
+@param linksWithin - Permitted source root, or undefined to reject the link.
+@returns The resolved target path inside the permitted root.
+*/
+async function checkedLinkPath(filename: string, linksWithin: string | undefined) {
+  if (!linksWithin) {
+    throw new Error(`Symbolic links are not supported: ${filename}`);
+  }
+
+  return containedLinkPath(filename, linksWithin);
+}
+
+/**
+List source files in stable order while checking links and optional exclusions.
+@param directory - Source directory to scan.
+@param prefix - Relative prefix to attach to returned paths.
+@param linksWithin - Permitted source root, or undefined to reject symbolic links.
+@param parents - Resolved ancestor paths used to detect cycles.
+@param shouldInclude - Optional asynchronous predicate that filters source paths.
+@returns The relative file paths, or an empty list when the directory does not exist.
+*/
 export async function filesIn(
   directory: string,
   prefix = "",
   linksWithin?: string,
   parents = new Set<string>(),
-  filter?: (filename: string) => Promise<boolean>
+  shouldInclude?: (filename: string) => Promise<boolean>
 ): Promise<string[]> {
+  async function scannedFiles(
+    scanDirectory: string,
+    scanPrefix: string,
+    scanLinksWithin: string | undefined,
+    scanShouldInclude: ((filename: string) => Promise<boolean>) | undefined,
+    scanned: Awaited<ReturnType<typeof readDirectory>>
+  ): Promise<string[]> {
+    const files: string[] = [];
+
+    const entries = scanned.entries.toSorted((a, b) => a.name.localeCompare(b.name));
+
+    async function appendIncludedEntry(entry: Dirent, filename: string, relative: string) {
+      let info: Pick<typeof entry, "isDirectory" | "isFile"> = entry;
+
+      if (entry.isSymbolicLink()) {
+        const resolved = await checkedLinkPath(filename, scanLinksWithin);
+
+        info = await stat(resolved);
+      }
+
+      if (info.isDirectory()) {
+        files.push(...(await filesIn(filename, relative, scanLinksWithin, scanned.parents, scanShouldInclude)));
+      } else if (info.isFile()) {
+        files.push(relative);
+      }
+    }
+
+    for (const entry of entries) {
+      const relative = path.posix.join(scanPrefix, entry.name);
+      const filename = path.join(scanDirectory, entry.name);
+
+      if (scanShouldInclude && !(await scanShouldInclude(filename))) {
+        continue;
+      }
+
+      await appendIncludedEntry(entry, filename, relative);
+    }
+
+    return files;
+  }
+
   let scanned: Awaited<ReturnType<typeof readDirectory>>;
 
   try {
@@ -87,52 +186,32 @@ export async function filesIn(
     throw error;
   }
 
-  const files: string[] = [];
-
-  for (const entry of scanned.entries.sort((a, b) => a.name.localeCompare(b.name))) {
-    const relative = path.posix.join(prefix, entry.name);
-    const filename = path.join(directory, entry.name);
-
-    if (filter && !(await filter(filename))) {
-      continue;
-    }
-
-    let info: Pick<typeof entry, "isDirectory" | "isFile"> = entry;
-
-    if (entry.isSymbolicLink()) {
-      if (!linksWithin) {
-        throw new Error(`Symbolic links are not supported: ${filename}`);
-      }
-
-      const resolved = await realpath(filename);
-
-      if (!resolved.startsWith(`${linksWithin}${path.sep}`)) {
-        throw new Error(`Source resource leaves the plugin sources: ${filename}`);
-      }
-
-      info = await stat(resolved);
-    }
-
-    if (info.isDirectory()) {
-      files.push(...(await filesIn(filename, relative, linksWithin, scanned.parents, filter)));
-    } else if (info.isFile()) {
-      files.push(relative);
-    }
-  }
-
-  return files;
+  return scannedFiles(directory, prefix, linksWithin, shouldInclude, scanned);
 }
 
+/**
+Reject a directory when it is a symbolic link.
+@param directory - Output parent directory to inspect.
+*/
+async function requireNonSymlink(directory: string) {
+  const info = await lstat(directory);
+
+  if (info.isSymbolicLink()) {
+    throw new Error(`Symbolic links are not supported: ${directory}`);
+  }
+}
+
+/**
+Reject symbolic links in existing parents of a generated output path.
+@param root - Output root that contains the generated path.
+@param relative - Generated path whose parent directories must be checked.
+*/
 export async function checkOutputParents(root: string, relative: string) {
   let directory = path.dirname(inside(root, relative));
 
   while (directory !== root) {
     try {
-      const resolvedValue2 = await lstat(directory);
-
-      if (resolvedValue2.isSymbolicLink()) {
-        throw new Error(`Symbolic links are not supported: ${directory}`);
-      }
+      await requireNonSymlink(directory);
     } catch (error) {
       if (!(error instanceof Error && "code" in error && error.code === "ENOENT")) {
         throw error;
@@ -143,6 +222,22 @@ export async function checkOutputParents(root: string, relative: string) {
   }
 }
 
+/**
+Remove a directory if its current contents are empty.
+@param directory - Directory to read again before removal.
+*/
+async function removeEmptyDirectory(directory: string) {
+  const resolvedValue3 = await readdir(directory);
+
+  if (resolvedValue3.length === 0) {
+    await rmdir(directory);
+  }
+}
+
+/**
+Remove empty descendant directories while rejecting symbolic links.
+@param directory - Root directory to prune, if it exists.
+*/
 export async function pruneEmptyDirectories(directory: string): Promise<void> {
   let entries: Dirent[];
 
@@ -166,98 +261,5 @@ export async function pruneEmptyDirectories(directory: string): Promise<void> {
     }
   }
 
-  const resolvedValue3 = await readdir(directory);
-
-  if (resolvedValue3.length === 0) {
-    await rmdir(directory);
-  }
-}
-
-export function validateRegistry(registry: Registry) {
-  fields(registry, ["marketplace", "plugins"], "registry");
-  fields(registry.marketplace, ["name", "display_name", "owner", "description"], "marketplace");
-  const marketplace = registry.marketplace;
-
-  for (const key of ["name", "owner", "description"]) {
-    requireText(marketplace[key], `marketplace.${key}`);
-  }
-
-  if (marketplace.display_name !== undefined) {
-    requireText(marketplace.display_name, "marketplace.display_name");
-  }
-
-  if (!NAME.test(marketplace.name)) {
-    throw new Error("marketplace.name must use lowercase kebab-case");
-  }
-
-  if (!Array.isArray(registry.plugins)) {
-    throw new TypeError("plugins must be an array");
-  }
-
-  const names = new Set();
-
-  for (const plugin of registry.plugins) {
-    fields(
-      plugin,
-      [
-        "name",
-        "version",
-        "description",
-        "harnesses",
-        "category",
-        "authentication",
-        "soubi",
-        "native",
-        "author",
-        "license",
-      ],
-      "plugin"
-    );
-
-    for (const key of ["name", "version", "description", "category"]) {
-      requireText(plugin[key], `plugin.${key}`);
-    }
-
-    if (!NAME.test(plugin.name)) {
-      throw new Error(`Invalid plugin name: ${plugin.name}`);
-    }
-
-    if (names.has(plugin.name)) {
-      throw new Error(`Duplicate plugin: ${plugin.name}`);
-    }
-
-    names.add(plugin.name);
-
-    if (!VERSION.test(plugin.version)) {
-      throw new Error(`Invalid version for ${plugin.name}: ${plugin.version}`);
-    }
-
-    if (plugin.authentication !== undefined && !["on-install", "on-use"].includes(plugin.authentication)) {
-      throw new Error(`${plugin.name}: authentication must be on-install or on-use`);
-    }
-
-    if (
-      !Array.isArray(plugin.harnesses) ||
-      plugin.harnesses.length === 0 ||
-      new Set(plugin.harnesses).size !== plugin.harnesses.length
-    ) {
-      throw new Error(`${plugin.name}: harnesses must be a non-empty array without duplicates`);
-    }
-
-    for (const harness of plugin.harnesses) {
-      if (!HARNESSES.has(harness)) {
-        throw new Error(`${plugin.name}: unsupported harness ${harness}`);
-      }
-    }
-
-    for (const key of ["author", "license"]) {
-      if (plugin[key] !== undefined) {
-        requireText(plugin[key], `plugin.${key}`);
-      }
-    }
-
-    if (plugin.soubi) {
-      fields(plugin.soubi, ["mcpServers", "assets", "harnessDefaults"], `${plugin.name}.soubi`);
-    }
-  }
+  await removeEmptyDirectory(directory);
 }

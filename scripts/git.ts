@@ -1,3 +1,9 @@
+/**
+Run Git in a working directory and reject an unsuccessful exit.
+@param cwd - Working directory for the Git process.
+@param args - Arguments to pass directly to Git.
+@returns The trimmed command output.
+*/
 export function git(cwd: string, args: string[]): string {
   const result = Bun.spawnSync(["git", ...args], {
     cwd,

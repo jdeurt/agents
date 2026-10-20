@@ -4,11 +4,13 @@
     "module": "ESNext",
     "moduleResolution": "Bundler",
     "allowImportingTsExtensions": true,
+    "allowJs": true,
     "noEmit": true,
     "esModuleInterop": true,
     "skipLibCheck": true,
     "strictNullChecks": true,
     "types": ["bun"]
   },
-  "include": ["scripts/**/*.ts", "plugins/engineering/**/*.ts", "plugins/engineering/**/*.mts", "eslint.config.ts"]
+  "include": ["**/*"],
+  "exclude": ["node_modules", "dist", ".marketplace-build", ".marketplace-verify"]
 }

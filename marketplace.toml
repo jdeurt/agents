@@ -19,26 +19,18 @@ url = "https://api.mobbin.com/mcp"
 [[plugins]]
 name = "engineering"
 version = "1.2.0"
-description = "Build with Bun TypeScript, lint edited code, and inspect duplication across languages with jscpd."
+description = "Build with Bun TypeScript, format and lint code, and review code against shared style rules."
 harnesses = ["claude", "codex"]
 category = "Development"
 authentication = "on-use"
 
-[plugins.soubi]
-assets = [
-  "scripts/post-edit.ts",
-  "scripts/post-edit-core.ts",
-  "scripts/post-edit-lint.ts",
-  "scripts/post-edit-deps.ts",
-  "hook-deps/package.json",
-  "hook-deps/bun.lock",
-  "eslint.config.ts",
-  "prettier.config.mjs"
-]
-
 [plugins.soubi.mcpServers.bun]
 transport = "http"
 url = "https://bun.com/docs/mcp"
+
+[plugins.soubi.mcpServers.jscpd]
+command = "npx"
+args = ["-y", "jscpd@5", "--mcp", "."]
 
 [[plugins]]
 name = "writing"

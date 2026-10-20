@@ -1,192 +1,170 @@
+import * as values from "./compile-plugin-values.ts";
 import * as z from "zod/mini";
 import type { BuiltFile, Plugin } from "./types.ts";
-import { EXECUTABLE_BITS, EXECUTABLE_MODE, REGULAR_MODE } from "./file-modes.ts";
+import { EXECUTABLE_MODE, REGULAR_MODE } from "./file-modes.ts";
 import { type HarnessOutput, compileProject } from "soubi/compiler";
-import { cp, realpath, stat } from "node:fs/promises";
+import { cp, mkdir, realpath, stat } from "node:fs/promises";
 import { filesIn, inside, marketplaceSourceFilter } from "./build-files.ts";
 import { jsonRecord, parseJsonRecord } from "./validation.ts";
-import { parseSkillFrontmatter, validateSkillFrontmatter } from "./file-validation.ts";
-import { readFile, writeFile } from "./io.ts";
+import { applyInvocationPolicies } from "./compile-invocation.ts";
+import { compileNativePlugin } from "./compile-native.ts";
 import path from "node:path";
+import { validateSkillFrontmatter } from "./file-validation.ts";
+import { writeFile } from "./io.ts";
+
+/**
+Serialize a value as formatted JSON with a final newline.
+@param value - Value to serialize.
+@returns The formatted JSON text.
+*/
 const json = (value: unknown) => `${JSON.stringify(value, undefined, 2)}\n`;
 
-function applyInvocationPolicies(
-  output: HarnessOutput,
-  harness: "claude" | "codex",
-  skills: Map<string, Awaited<ReturnType<typeof validateSkillFrontmatter>>>
-) {
-  const files = new Map(output.files.map((file) => [file.path, file]));
+/**
+Copy the shared JavaScript lint and formatting files into skill references.
+@param root - Repository root containing the shared policy files.
+@param references - Destination directory for the bundled reference files.
+*/
+async function copyJavascriptPolicy(root: string, references: string) {
+  await mkdir(references, { recursive: true });
 
-  for (const [name, metadata] of skills) {
-    const explicit = metadata.metadata?.invocation === "explicit";
-
-    const skillPath = `skills/${name}/SKILL.md`;
-    const skill = files.get(skillPath);
-
-    if (!skill) {
-      throw new Error(`${harness}: missing skill ${name}`);
-    }
-
-    const source = Buffer.from(skill.contents).toString();
-    const { header, document: skillDocument } = parseSkillFrontmatter(source);
-
-    // Soubi 0.0.1 flattens nested YAML metadata; retain the validated source fields.
-    for (const key of Object.keys(metadata.metadata ?? {})) {
-      if (!Object.hasOwn(metadata, key)) {
-        Reflect.deleteProperty(skillDocument, key);
-      }
-    }
-
-    for (const [key, value] of Object.entries(metadata)) {
-      skillDocument[key] = value;
-    }
-
-    if (harness === "codex") {
-      delete skillDocument["allowed-tools"];
-      delete skillDocument["user-invocable"];
-    }
-
-    if (explicit && harness === "claude") {
-      skillDocument["disable-model-invocation"] = true;
-    }
-
-    files.set(skillPath, {
-      ...skill,
-      contents:
-        `---\n${Bun.YAML.stringify(skillDocument, undefined, 2).trimEnd()}\n---` +
-        source.slice(header.position.end.offset),
-    });
-
-    if (!explicit || harness !== "codex") {
-      continue;
-    }
-
-    const configPath = `skills/${name}/agents/openai.yaml`;
-    const existing = files.get(configPath);
-    const document = existing ? Bun.YAML.parse(Buffer.from(existing.contents).toString()) : {};
-
-    if (!document || typeof document !== "object" || Array.isArray(document)) {
-      throw new Error(`${configPath}: configuration must be a YAML mapping`);
-    }
-
-    const policy: unknown = Reflect.get(document, "policy");
-
-    if (policy !== undefined && (!policy || typeof policy !== "object" || Array.isArray(policy))) {
-      throw new Error(`${configPath}: policy must be a YAML mapping`);
-    }
-
-    Reflect.set(document, "policy", {
-      ...(policy && typeof policy === "object" && !Array.isArray(policy) && policy),
-      allow_implicit_invocation: false,
-    });
-    files.set(configPath, {
-      ...existing,
-      path: configPath,
-      contents: Bun.YAML.stringify(document, undefined, 2),
-    });
+  for (const file of ["eslint.config.ts", "prettier.config.mjs", "eslint-rules.ts"]) {
+    await cp(path.join(root, file), path.join(references, file));
   }
-
-  return files.values();
 }
 
-async function compileNativePlugin(plugin: Plugin, source: string, sourceFiles: string[]) {
+/**
+Bundle JavaScript policy references when the staged plugin is Engineering.
+@param root - Repository root containing the shared policy files.
+@param project - Staged plugin directory.
+@param name - Plugin name used to select Engineering.
+*/
+async function copyEngineeringPolicy(root: string, project: string, name: string) {
+  if (name !== "engineering") {
+    return;
+  }
+
+  await copyJavascriptPolicy(root, path.join(project, "skills/formatting-linting/references/javascript"));
+}
+
+/**
+Select compiled harness output and reject a missing result.
+@param outputs - Harness results returned by the compiler.
+@param harness - Harness name to select.
+@param pluginName - Plugin name to include in an error message.
+@returns The compiled output for the requested harness.
+*/
+function requireHarnessOutput(outputs: HarnessOutput[], harness: string, pluginName: string) {
+  const output = outputs.find((item) => item.harness === harness);
+
+  if (!output) {
+    throw new Error(`${pluginName}: missing ${harness} output`);
+  }
+
+  return output;
+}
+
+/**
+Normalize compiled manifests, skill policies, and server paths for publication.
+@param root - Source root used to validate compiler output paths.
+@param plugin - Plugin metadata and harness settings.
+@param outputs - Compiled output for the requested harnesses.
+@param skills - Validated source metadata indexed by skill name.
+@returns The generated file map with publication paths and executable modes.
+*/
+function collectCompiledFiles(
+  root: string,
+  plugin: Plugin,
+  outputs: HarnessOutput[],
+  skills: Map<string, Awaited<ReturnType<typeof validateSkillFrontmatter>>>
+) {
   const files = new Map<string, BuiltFile>();
 
   for (const harness of plugin.harnesses) {
+    const output = requireHarnessOutput(outputs, harness, plugin.name);
+    const base = `dist/${harness}/plugins/${plugin.name}`;
     const manifestPath = `.${harness}-plugin/plugin.json`;
-    const portable = harness === "codex" && sourceFiles.includes("plugin.json");
-    const selected = portable ? "plugin.json" : manifestPath;
-    await readFile(path.join(source, selected), "utf8");
 
-    for (const file of sourceFiles) {
-      let contents = await readFile(path.join(source, file));
+    if (output.files.every((file) => file.path !== manifestPath)) {
+      throw new Error(`${plugin.name}: missing ${harness} manifest`);
+    }
 
-      if (file === selected || file === manifestPath) {
+    for (const file of applyInvocationPolicies(output, harness, skills)) {
+      const target = `${base}/${file.path}`;
+
+      let contents: Buffer;
+
+      inside(root, file.path);
+      contents = Buffer.from(file.contents);
+
+      if (file.path === manifestPath) {
+        const manifest = parseJsonRecord(contents.toString());
+
         contents = Buffer.from(
           json({
-            ...JSON.parse(contents.toString()),
+            ...manifest,
             name: `jdeurt-${plugin.name}`,
             version: plugin.version,
+            ...(plugin.license && { license: plugin.license }),
           })
         );
       }
 
-      const info = await stat(path.join(source, file));
-      files.set(`dist/${harness}/plugins/${plugin.name}/${file}`, {
-        contents,
-        mode: info.mode & EXECUTABLE_BITS ? EXECUTABLE_MODE : REGULAR_MODE,
-      });
+      if (harness === "codex" && file.path === ".mcp.json") {
+        const servers = z.record(z.string(), jsonRecord).parse(JSON.parse(contents.toString()));
+
+        // Soubi 0.0.1 drops cwd for Codex; native plugins resolve it against their installed root.
+        const sourceServers = Object.entries(plugin.soubi?.mcpServers ?? {});
+
+        for (const [name, server] of sourceServers) {
+          if ("command" in server && server.command && server.cwd) {
+            servers[name].cwd = server.cwd.replaceAll(values.PLUGIN_ROOT_PLACEHOLDER, ".");
+          }
+        }
+
+        contents = Buffer.from(json(servers));
+      }
+
+      if (files.has(target)) {
+        throw new Error(`Duplicate generated file: ${target}`);
+      }
+
+      files.set(target, { contents, mode: file.executable ? EXECUTABLE_MODE : REGULAR_MODE });
     }
   }
 
   return files;
 }
 
-async function copyEngineeringPolicy(root: string, project: string, name: string) {
-  if (name !== "engineering") {
-    return;
-  }
+/**
+Read and validate a skill's metadata, then add it to the source metadata map.
+@param source - Plugin source directory.
+@param file - Relative path to the skill document.
+@param skills - Mutable metadata map indexed by skill name.
+*/
+async function collectSkill(
+  source: string,
+  file: string,
+  skills: Map<string, Awaited<ReturnType<typeof validateSkillFrontmatter>>>
+) {
+  const metadata = await validateSkillFrontmatter(path.join(source, file));
 
-  for (const file of ["eslint.config.ts", "prettier.config.mjs"]) {
-    await cp(path.join(root, file), path.join(project, file));
-  }
+  skills.set(metadata.name, metadata);
 }
 
-export async function compilePlugin(root: string, plugin: Plugin, owner: string, staging: string) {
-  const source = inside(root, `plugins/${plugin.name}`);
-  const resolved = await realpath(source);
-  const resolvedValue1 = await stat(source);
-
-  if (resolved !== source || !resolvedValue1.isDirectory()) {
-    throw new Error(`Invalid plugin source: ${source}`);
-  }
-
-  const pluginsRoot = path.join(root, "plugins");
-  const filter = marketplaceSourceFilter(pluginsRoot);
-  const sourceFiles = await filesIn(source, "", pluginsRoot, new Set(), filter);
-
-  if (plugin.native) {
-    return compileNativePlugin(plugin, source, sourceFiles);
-  }
-
-  const skills = new Map<string, Awaited<ReturnType<typeof validateSkillFrontmatter>>>();
-
-  for (const file of sourceFiles) {
-    if (path.basename(file) !== "SKILL.md") {
-      continue;
-    }
-
-    const metadata = await validateSkillFrontmatter(path.join(source, file));
-    skills.set(metadata.name, metadata);
-  }
-
-  if (sourceFiles.some((file) => /^plugin\.config\.[^/]+$/.test(file))) {
-    throw new Error(`${plugin.name}: define Soubi configuration in marketplace.toml`);
-  }
-
-  const project = path.join(staging, plugin.name);
-  await cp(source, project, { recursive: true, dereference: true, filter });
-
-  await copyEngineeringPolicy(root, project, plugin.name);
-
-  const config = {
-    ...plugin.soubi,
-    id: `jdeurt-${plugin.name}`,
-    version: plugin.version,
-    description: plugin.description,
-    author: { name: plugin.author ?? owner },
-    harnesses: plugin.harnesses,
-    harnessDefaults: Object.fromEntries(
-      plugin.harnesses.map((harness) => [
-        harness,
-        {
-          ...plugin.soubi?.harnessDefaults?.[harness],
-          onUnsupported: "fail",
-        },
-      ])
-    ),
-  };
-  await writeFile(path.join(project, "plugin.config.ts"), `export default ${json(config)}`);
+/**
+Compile a staged project and reject unsupported behavior changes.
+@param root - Source root used to validate generated paths.
+@param plugin - Plugin metadata and harness settings.
+@param project - Staged project directory to compile.
+@param skills - Validated source metadata indexed by skill name.
+@returns The normalized generated file map for the plugin.
+*/
+async function compileProjectFiles(
+  root: string,
+  plugin: Plugin,
+  project: string,
+  skills: Map<string, Awaited<ReturnType<typeof validateSkillFrontmatter>>>
+) {
   const result = await compileProject(project, {
     only: plugin.harnesses,
     fresh: true,
@@ -209,66 +187,103 @@ export async function compilePlugin(root: string, plugin: Plugin, owner: string,
     );
   }
 
-  const files = new Map<string, BuiltFile>();
+  return collectCompiledFiles(root, plugin, result.outputs, skills);
+}
 
-  for (const harness of plugin.harnesses) {
-    const output = result.outputs.find((item) => item.harness === harness);
+/**
+Write the compiler configuration and compile the staged plugin.
+@param root - Source root used to validate generated paths.
+@param plugin - Plugin metadata and compiler settings.
+@param owner - Default author name for plugins without an author.
+@param project - Staged plugin directory.
+@param skills - Validated source metadata indexed by skill name.
+@returns The normalized generated file map for the plugin.
+*/
+async function compileStagedPlugin(
+  root: string,
+  plugin: Plugin,
+  owner: string,
+  project: string,
+  skills: Map<string, Awaited<ReturnType<typeof validateSkillFrontmatter>>>
+) {
+  const config = {
+    ...plugin.soubi,
+    id: `jdeurt-${plugin.name}`,
+    version: plugin.version,
+    description: plugin.description,
+    author: { name: plugin.author ?? owner },
+    harnesses: plugin.harnesses,
+    harnessDefaults: Object.fromEntries(
+      plugin.harnesses.map((harness) => [
+        harness,
+        {
+          ...plugin.soubi?.harnessDefaults?.[harness],
+          onUnsupported: "fail",
+        },
+      ])
+    ),
+  };
 
-    if (!output) {
-      throw new Error(`${plugin.name}: missing ${harness} output`);
-    }
+  await writeFile(path.join(project, "plugin.config.ts"), `export default ${json(config)}`);
 
-    const base = `dist/${harness}/plugins/${plugin.name}`;
-    const manifestPath = `.${harness}-plugin/plugin.json`;
+  return compileProjectFiles(root, plugin, project, skills);
+}
 
-    if (output.files.every((file) => file.path !== manifestPath)) {
-      throw new Error(`${plugin.name}: missing ${harness} manifest`);
-    }
+/**
+Prepare source files for native packaging or staged compiler execution.
+@param root - Root directory containing plugin sources and shared policy files.
+@param plugin - Plugin metadata and compiler settings.
+@param owner - Default author name for plugins without an author.
+@param staging - Temporary parent directory for staged projects.
+@param source - Validated source directory for this plugin.
+@returns The generated file map for the plugin.
+*/
+async function compileSourcePlugin(root: string, plugin: Plugin, owner: string, staging: string, source: string) {
+  const pluginsRoot = path.join(root, "plugins");
+  const shouldInclude = marketplaceSourceFilter(pluginsRoot);
+  const sourceFiles = await filesIn(source, "", pluginsRoot, new Set(), shouldInclude);
+  const skills = new Map<string, Awaited<ReturnType<typeof validateSkillFrontmatter>>>();
+  const project = path.join(staging, plugin.name);
 
-    for (const file of applyInvocationPolicies(output, harness, skills)) {
-      // Soubi 0.0.1 emits obsolete manual-install advice for Codex plugin hooks.
-      // Current local Codex loads bundled hooks after the user trusts the plugin.
-      if (plugin.name === "engineering" && harness === "codex" && file.path === "hooks/README.md") {
-        continue;
-      }
-
-      inside(root, file.path);
-      let contents = Buffer.from(file.contents);
-
-      if (file.path === manifestPath) {
-        const manifest = parseJsonRecord(contents.toString());
-        contents = Buffer.from(
-          json({
-            ...manifest,
-            name: `jdeurt-${plugin.name}`,
-            version: plugin.version,
-            ...(plugin.license && { license: plugin.license }),
-          })
-        );
-      }
-
-      if (harness === "codex" && file.path === ".mcp.json") {
-        const servers = z.record(z.string(), jsonRecord).parse(JSON.parse(contents.toString()));
-
-        // Soubi 0.0.1 drops cwd for Codex; native plugins resolve it against their installed root.
-        for (const [name, server] of Object.entries(plugin.soubi?.mcpServers ?? {})) {
-          if ("command" in server && server.command && server.cwd) {
-            servers[name].cwd = server.cwd.replaceAll("${PLUGIN_ROOT}", ".");
-          }
-        }
-
-        contents = Buffer.from(json(servers));
-      }
-
-      const target = `${base}/${file.path}`;
-
-      if (files.has(target)) {
-        throw new Error(`Duplicate generated file: ${target}`);
-      }
-
-      files.set(target, { contents, mode: file.executable ? EXECUTABLE_MODE : REGULAR_MODE });
-    }
+  if (plugin.native) {
+    return compileNativePlugin(plugin, source, sourceFiles);
   }
 
-  return files;
+  for (const file of sourceFiles) {
+    if (path.basename(file) !== "SKILL.md") {
+      continue;
+    }
+
+    await collectSkill(source, file, skills);
+  }
+
+  if (sourceFiles.some((file) => /^plugin\.config\.[^/]+$/.test(file))) {
+    throw new Error(`${plugin.name}: define Soubi configuration in marketplace.toml`);
+  }
+
+  await cp(source, project, { recursive: true, dereference: true, filter: shouldInclude });
+
+  await copyEngineeringPolicy(root, project, plugin.name);
+
+  return compileStagedPlugin(root, plugin, owner, project, skills);
+}
+
+/**
+Validate the plugin source directory and compile its configured harness outputs.
+@param root - Root directory containing plugin sources and shared policy files.
+@param plugin - Plugin metadata and compiler settings.
+@param owner - Default author name for plugins without an author.
+@param staging - Temporary parent directory for staged projects.
+@returns The generated file map for the plugin.
+*/
+export async function compilePlugin(root: string, plugin: Plugin, owner: string, staging: string) {
+  const source = inside(root, `plugins/${plugin.name}`);
+  const resolved = await realpath(source);
+  const resolvedValue1 = await stat(source);
+
+  if (resolved !== source || !resolvedValue1.isDirectory()) {
+    throw new Error(`Invalid plugin source: ${source}`);
+  }
+
+  return compileSourcePlugin(root, plugin, owner, staging, source);
 }
