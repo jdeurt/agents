@@ -85,6 +85,34 @@ const presence = [
       "/** Read input.\n@param value - Input value.\n@returns The input unchanged.\n*/ const read = ((value: string) => value) satisfies (value: string) => string;",
     count: 0,
   },
+  {
+    source: 'module.exports = function normalizeTitle(title = "") { return title.trim(); };',
+    count: 1,
+    extension: "cjs",
+  },
+  { source: 'exports.read = (value = "") => value.trim();', count: 1, extension: "cjs" },
+  { source: 'module.exports = (value = "") => value;', count: 1, extension: "cjs" },
+  { source: 'exports.read = factory((value = "") => value);', count: 0, extension: "cjs" },
+  { source: 'module.exports = { read(value = "") { return value; } };', count: 0, extension: "cjs" },
+  {
+    source: '/** Export values. */ function expose() { exports.read = (value = "") => value; }',
+    count: 0,
+    extension: "cjs",
+  },
+  { source: "exports.read = ((value: string) => value) satisfies (value: string) => string;", count: 1 },
+  {
+    source:
+      '/** Read input.\n@param value - Input text.\n@returns The input without outer whitespace.\n*/ module.exports = function read(value = "") { return value.trim(); };',
+    count: 0,
+    extension: "cjs",
+  },
+  { source: 'export = function read(value = "") { return value.trim(); };', count: 1, extension: "cts" },
+  {
+    source:
+      '/** Read input.\n@param value - Input text.\n@returns The input without outer whitespace.\n*/ export = function read(value = "") { return value.trim(); };',
+    count: 0,
+    extension: "cts",
+  },
 ];
 
 const content = [
@@ -149,6 +177,26 @@ const content = [
     source:
       "/** Read input.\n@param value - Input value.\n@returns The input value.\n*/ const read = ((value: string) => value) satisfies (value: string) => string;",
     count: 0,
+  },
+  {
+    rule: rules.params,
+    source: '/** Read input. */ exports.read = (value = "") => value.trim();',
+    count: 1,
+    extension: "cjs",
+  },
+  {
+    rule: rules.returns,
+    source:
+      '/** Read input.\n@param value - Input text.\n*/ module.exports = function read(value = "") { return value.trim(); };',
+    count: 1,
+    extension: "cjs",
+  },
+  {
+    rule: rules.params,
+    source:
+      '/** Read input.\n@param value - Input text.\n@returns The input without outer whitespace.\n*/ module.exports = function read(value = "") { return value.trim(); };',
+    count: 0,
+    extension: "cjs",
   },
 ];
 const returns = [

@@ -45,6 +45,8 @@ const TOP_LEVEL_INITIALIZERS = [
   "Program > VariableDeclaration > VariableDeclarator",
   "Program > ExportNamedDeclaration > VariableDeclaration > VariableDeclarator",
   "Program > ExportDefaultDeclaration",
+  "Program > ExpressionStatement > AssignmentExpression",
+  "Program > TSExportAssignment",
 ];
 const DOCUMENTED_FUNCTIONS = [
   "Program > :matches(FunctionDeclaration, TSDeclareFunction)",
@@ -132,6 +134,7 @@ export function createConfig(options: { typed?: boolean; tsconfigRootDir?: strin
       ? [...tseslint.configs.strictTypeChecked, ...tseslint.configs.stylisticTypeChecked]
       : [...tseslint.configs.strict, ...tseslint.configs.stylistic]
     ).map((entry: Record<string, unknown>) => ({ ...entry, files: options.typed && !entry.files ? files : tsFiles })),
+    { files: ["**/*.{cjs,cts}"], languageOptions: { sourceType: "commonjs" } },
     {
       files,
       languageOptions: {

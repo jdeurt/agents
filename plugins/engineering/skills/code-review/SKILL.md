@@ -105,7 +105,7 @@ For each style violation, include:
 - The rule identifier and title from Rules of style, such as `1A`.
 - Why the code violates that rule and what effect the violation has.
 
-Use the guide's exact identifiers. Do not invent rule identifiers. If an explicit project rule takes precedence, cite that rule and its source file.
+Use the guide's exact identifiers. Do not invent rule identifiers. Use each rule's Why section to explain the reason for a finding. If an explicit project rule takes precedence, cite that rule and its source file.
 
 State the style criteria and checks used. State the writing checks and their text scope. State the duplicate kinds, source coverage, and dead-code scope. Identify unresolved findings and checks that could not run. Distinguish an incomplete scan from a scan with no relevant findings.
 
@@ -120,7 +120,7 @@ Review result: two style violations.
    import { saveReport } from "./storage.ts";
    ```
 
-   These statements import different names from the same module. Combine them into one named import to avoid duplicate dependency declarations.
+   These statements split one module's dependencies across two declarations. Combine them so readers can see those dependencies in one place.
 
 2. `src/storage.ts:18` — **9B. Document classes and callable contracts**
 
@@ -131,6 +131,6 @@ Review result: two style violations.
    }
    ```
 
-   The comment omits the parameter and return descriptions. Describe which report identifier the caller must supply and the resolved value. State what happens when no report exists.
+   The comment omits the parameter and return descriptions. Callers must inspect the implementation to understand valid inputs and missing-report behavior. Describe the identifier, resolved value, and behavior when no report exists.
 
 Checks: formatting, types, and tests passed. Lint failed on these violations. Type-1, Type-2, and Type-3 scans found no actionable code clones. The source review found no added dead code.
