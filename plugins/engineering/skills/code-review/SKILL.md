@@ -96,4 +96,41 @@ Check references, dynamic loading, public APIs, and framework entry points befor
 
 ## Report the result
 
-Report material findings with paths, locations, and their effect. State the style criteria and checks used. State the writing checks and their text scope. State the duplicate kinds, source coverage, and dead-code scope. Identify unresolved findings and checks that could not run. Distinguish an incomplete scan from a scan with no relevant findings.
+Report material findings with paths, locations, and their effect.
+
+For each style violation, include:
+
+- The file and line in `path:line` form.
+- The offending code or text.
+- The rule identifier and title from Rules of style, such as `1A`.
+- Why the code violates that rule and what effect the violation has.
+
+Use the guide's exact identifiers. Do not invent rule identifiers. If an explicit project rule takes precedence, cite that rule and its source file.
+
+State the style criteria and checks used. State the writing checks and their text scope. State the duplicate kinds, source coverage, and dead-code scope. Identify unresolved findings and checks that could not run. Distinguish an incomplete scan from a scan with no relevant findings.
+
+## Example response
+
+Review result: two style violations.
+
+1. `src/report.ts:2` — **2H. Use explicit, supported dependencies**
+
+   ```ts
+   import { loadReport } from "./storage.ts";
+   import { saveReport } from "./storage.ts";
+   ```
+
+   These statements import different names from the same module. Combine them into one named import to avoid duplicate dependency declarations.
+
+2. `src/storage.ts:18` — **9B. Document classes and callable contracts**
+
+   ```ts
+   /** Fetch a saved report by its identifier. */
+   export async function loadReport(reportId: string) {
+     return storage.read(reportId);
+   }
+   ```
+
+   The comment omits the parameter and return descriptions. Describe which report identifier the caller must supply and the resolved value. State what happens when no report exists.
+
+Checks: formatting, types, and tests passed. Lint failed on these violations. Type-1, Type-2, and Type-3 scans found no actionable code clones. The source review found no added dead code.

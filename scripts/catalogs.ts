@@ -5,8 +5,18 @@ const CATALOGS = {
   claude: ".claude-plugin/marketplace.json",
   codex: ".agents/plugins/marketplace.json",
 };
+/**
+Serialize a value as formatted JSON with a final newline.
+@param value - Value to serialize.
+@returns The formatted JSON text.
+*/
 const json = (value: unknown) => `${JSON.stringify(value, undefined, 2)}\n`;
 
+/**
+Create the Claude and Codex marketplace catalogs from registry metadata.
+@param registry - Validated marketplace registry with plugin publication metadata.
+@returns The generated catalog files indexed by publication path.
+*/
 export function catalogs(registry: Registry) {
   const expected = new Map<string, BuiltFile>();
   const marketplace = registry.marketplace;

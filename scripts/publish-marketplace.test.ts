@@ -7,22 +7,16 @@ import { test } from "bun:test";
 import { tmpdir } from "node:os";
 import { writeFile } from "./io.ts";
 
-const PUBLISHES_ISOLATED_SNAPSHOTS_SKIPS_UNCHANGED_TREES_AND =
-  "publishes isolated snapshots, skips unchanged trees, and rejects stale leases";
-const AGENTS_PUBLISH_TEST = "agents-publish-test-";
-
 const REFS_HEADS_MARKETPLACE = "refs/heads/marketplace";
 
-const STALE_WRITER = "stale writer";
-
-test(PUBLISHES_ISOLATED_SNAPSHOTS_SKIPS_UNCHANGED_TREES_AND, async () => {
-  const directory = await mkdtemp(path.join(tmpdir(), AGENTS_PUBLISH_TEST));
+test("publishes isolated snapshots, skips unchanged trees, and rejects stale leases", async () => {
+  const directory = await mkdtemp(path.join(tmpdir(), "agents-publish-test-"));
 
   async function verifySecondSnapshot(source: string, output: string, first: string) {
     const second = git(source, ["ls-remote", "origin", REFS_HEADS_MARKETPLACE]).split(/\s+/, 1)[0];
 
     assert.equal(git(source, ["rev-list", "--count", second]), "1");
-    await writeFile(path.join(output, "README.md"), STALE_WRITER);
+    await writeFile(path.join(output, "README.md"), "stale writer");
     assert.throws(() => didPublishTree(source, output, first), /stale info|rejected/);
   }
 

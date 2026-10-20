@@ -8,26 +8,18 @@ import path from "node:path";
 import { test } from "bun:test";
 import { tmpdir } from "node:os";
 
-const IMPORT_POLICY_REMOVES_UNAPPROVED_CODE_AND_EXECUTABLE =
-  "import policy removes unapproved code and executable integrations and explains omissions";
-const AGENTS_POLICY_TEST = "agents-policy-test-";
-
-const CODEX_PLUGIN = ".codex-plugin";
-
-const NAME_TEST_DESCRIPTION_TEST_RUN_SCRIPTS_OMITTED =
-  "---\nname: test\ndescription: Test.\n---\nRun scripts/omitted.py.\n";
 const SCRIPTS_ALLOWED_TS = "scripts/allowed.ts";
-const CONSOLE_LOG_ALLOWED = "console.log('allowed');\n";
-const SCRIPTS_OMITTED_PY = "scripts/omitted.py";
-const PRINT_OMITTED = "print('omitted')\n";
-const CODEX_PLUGIN_PLUGIN_JSON = ".codex-plugin/plugin.json";
 
-const CONFIG_MCP_JSON = "./config/mcp.json";
+const SCRIPTS_OMITTED_PY = "scripts/omitted.py";
+
+const CODEX_PLUGIN_PLUGIN_JSON = ".codex-plugin/plugin.json";
 
 const HTTPS_EXAMPLE_COM_MCP = "https://example.com/mcp";
 
-const PRINT_OPT_IN = "print('opt in')\n";
-
+/**
+Check that filtering removes executable manifest integrations.
+@param directory - Filtered import directory containing the plugin manifest.
+*/
 async function assertRestrictedManifest(directory: string) {
   const manifestContents = await readFile(path.join(directory, CODEX_PLUGIN_PLUGIN_JSON), "utf8");
   const manifest = z
@@ -38,6 +30,10 @@ async function assertRestrictedManifest(directory: string) {
   assert.equal(manifest.mcpServers, undefined);
 }
 
+/**
+Check that remote MCP settings survive local server removal.
+@param directory - Filtered import directory containing its MCP configuration.
+*/
 async function assertRestrictedMcp(directory: string) {
   const mcpContents = await readFile(path.join(directory, ".mcp.json"), "utf8");
   const mcp = z
@@ -48,8 +44,8 @@ async function assertRestrictedMcp(directory: string) {
   assert.equal(mcp.remote.url, HTTPS_EXAMPLE_COM_MCP);
 }
 
-test(IMPORT_POLICY_REMOVES_UNAPPROVED_CODE_AND_EXECUTABLE, async () => {
-  const directory = await mkdtemp(path.join(tmpdir(), AGENTS_POLICY_TEST));
+test("import policy removes unapproved code and executable integrations and explains omissions", async () => {
+  const directory = await mkdtemp(path.join(tmpdir(), "agents-policy-test-"));
   const entry: ExternalImport = {
     name: "test",
     kind: "plugin",
@@ -62,16 +58,19 @@ test(IMPORT_POLICY_REMOVES_UNAPPROVED_CODE_AND_EXECUTABLE, async () => {
 
   try {
     await mkdir(path.join(directory, "scripts"));
-    await mkdir(path.join(directory, CODEX_PLUGIN));
-    await writeFile(path.join(directory, "SKILL.md"), NAME_TEST_DESCRIPTION_TEST_RUN_SCRIPTS_OMITTED);
-    await writeFile(path.join(directory, SCRIPTS_ALLOWED_TS), CONSOLE_LOG_ALLOWED);
-    await writeFile(path.join(directory, SCRIPTS_OMITTED_PY), PRINT_OMITTED);
+    await mkdir(path.join(directory, ".codex-plugin"));
+    await writeFile(
+      path.join(directory, "SKILL.md"),
+      "---\nname: test\ndescription: Test.\n---\nRun scripts/omitted.py.\n"
+    );
+    await writeFile(path.join(directory, SCRIPTS_ALLOWED_TS), "console.log('allowed');\n");
+    await writeFile(path.join(directory, SCRIPTS_OMITTED_PY), "print('omitted')\n");
     await writeFile(
       path.join(directory, CODEX_PLUGIN_PLUGIN_JSON),
       JSON.stringify({
         name: "test",
         hooks: { SessionStart: [{ command: "echo hi" }] },
-        mcpServers: [CONFIG_MCP_JSON],
+        mcpServers: ["./config/mcp.json"],
       })
     );
     await writeFile(
@@ -87,7 +86,7 @@ test(IMPORT_POLICY_REMOVES_UNAPPROVED_CODE_AND_EXECUTABLE, async () => {
     assert.match(await readFile(path.join(directory, "SKILL.md"), "utf8"), /Do not download, install, recreate/);
     await assertRestrictedManifest(directory);
     await assertRestrictedMcp(directory);
-    await writeFile(path.join(directory, SCRIPTS_OMITTED_PY), PRINT_OPT_IN);
+    await writeFile(path.join(directory, SCRIPTS_OMITTED_PY), "print('opt in')\n");
     await applyImportPolicy(directory, {
       ...entry,
       scripts: "all",

@@ -8,19 +8,13 @@ import path from "node:path";
 import { readFile } from "./io.ts";
 import { tmpdir } from "node:os";
 
-const IMPORT_ROOT_IS_A_SYMLINK = "Import root is a symlink";
-
-const IMPORTS_MUST_RESOLVE_INTO_A_SEPARATE_BUILD = "Imports must resolve into a separate build directory";
-const AGENTS_IMPORT = "agents-import-";
-
-const IMPORT_PATH_TRAVERSES_A_SYMLINK = "Import path traverses a symlink";
-
-const INVALID_IMPORT_LICENSE = "Invalid import license";
-
-const UPSTREAM_LICENSE = "UPSTREAM-LICENSE";
-
 const ROOT = fileURLToPath(new URL("../", import.meta.url));
 
+/**
+Reject absolute paths and unsafe import path segments.
+@param relative - Candidate path relative to an import root.
+@returns The accepted relative path.
+*/
 function requireImportRelative(relative: string) {
   if (
     typeof relative !== "string" ||
@@ -28,26 +22,33 @@ function requireImportRelative(relative: string) {
     path.isAbsolute(relative) ||
     relative.split(/[\\/]/).some((p) => p === ".." || p === ".git")
   ) {
-    const message = `Unsafe import path: ${relative}`;
-
-    throw new Error(message);
+    throw new Error(`Unsafe import path: ${relative}`);
   }
 
   return relative;
 }
 
+/**
+Resolve an import path while keeping it below its root.
+@param root - Directory that must contain the resolved path.
+@param relative - Candidate relative import path.
+@returns The absolute path contained below the root.
+*/
 export function inside(root: string, relative: string) {
   const resolved = path.resolve(root, requireImportRelative(relative));
 
   if (!resolved.startsWith(path.resolve(root) + path.sep)) {
-    const unsafePathMessage = `Unsafe import path: ${relative}`;
-
-    throw new Error(unsafePathMessage);
+    throw new Error(`Unsafe import path: ${relative}`);
   }
 
   return resolved;
 }
 
+/**
+Hash file paths, executable flags, and bytes in a symlink-free tree.
+@param directory - Content tree to validate and hash.
+@returns The hexadecimal SHA-256 content digest.
+*/
 export async function digest(directory: string) {
   const hash = new Bun.CryptoHasher("sha256");
 
@@ -61,9 +62,7 @@ export async function digest(directory: string) {
       const info = await lstat(file);
 
       if (info.isSymbolicLink()) {
-        const symlinkMessage = `Import contains symlink: ${relative}`;
-
-        throw new Error(symlinkMessage);
+        throw new Error(`Import contains symlink: ${relative}`);
       }
 
       if (info.isDirectory()) {
@@ -74,9 +73,7 @@ export async function digest(directory: string) {
         hash.update(JSON.stringify([relative, Boolean(info.mode & EXECUTABLE_BITS), bytes.length]) + "\n");
         hash.update(bytes);
       } else {
-        const unsupportedFileMessage = `Unsupported import file: ${relative}`;
-
-        throw new Error(unsupportedFileMessage);
+        throw new Error(`Unsupported import file: ${relative}`);
       }
     }
   }
@@ -84,7 +81,7 @@ export async function digest(directory: string) {
   const info = await lstat(directory);
 
   if (info.isSymbolicLink()) {
-    throw new Error(IMPORT_ROOT_IS_A_SYMLINK);
+    throw new Error("Import root is a symlink");
   }
 
   await walk(directory);
@@ -92,6 +89,12 @@ export async function digest(directory: string) {
   return hash.digest("hex");
 }
 
+/**
+Fetch an import revision and select its source directory.
+@param checkout - New temporary directory for the repository checkout.
+@param entry - Declaration that selects the repository, revision, and path.
+@returns The checked-out directory selected by the declaration.
+*/
 async function checkoutImport(checkout: string, entry: Awaited<ReturnType<typeof readImports>>[number]) {
   await mkdir(checkout);
   git(checkout, ["init", "-q"]);
@@ -102,20 +105,33 @@ async function checkoutImport(checkout: string, entry: Awaited<ReturnType<typeof
   return entry.path === "." ? checkout : inside(checkout, entry.path);
 }
 
+/**
+Require a regular license file without symlink traversal.
+@param checkout - Repository checkout containing the declared license.
+@param entry - Declaration that supplies the relative license path.
+@returns The absolute path to the validated license file.
+*/
 async function validatedLicense(checkout: string, entry: Awaited<ReturnType<typeof readImports>>[number]) {
   const license = inside(checkout, entry.license);
   const licenseInfo = await lstat(license);
 
   if ((await realpath(license)) !== license || !licenseInfo.isFile()) {
-    throw new Error(INVALID_IMPORT_LICENSE);
+    throw new Error("Invalid import license");
   }
 
   return license;
 }
 
+/**
+Validate imported source content and locate its license.
+@param source - Selected source directory within the checkout.
+@param checkout - Repository checkout whose Git metadata will be removed.
+@param entry - Declaration used to validate skill content and license paths.
+@returns The absolute path to the validated license file.
+*/
 async function sourceLicense(source: string, checkout: string, entry: Awaited<ReturnType<typeof readImports>>[number]) {
   if ((await realpath(source)) !== source) {
-    throw new Error(IMPORT_PATH_TRAVERSES_A_SYMLINK);
+    throw new Error("Import path traverses a symlink");
   }
 
   await rm(path.join(checkout, ".git"), { recursive: true, force: true });
@@ -128,6 +144,11 @@ async function sourceLicense(source: string, checkout: string, entry: Awaited<Re
   return validatedLicense(checkout, entry);
 }
 
+/**
+Copy one validated import into filtered temporary content.
+@param temp - Temporary root for checkout and staged content.
+@param entry - Import declaration to fetch, validate, and filter.
+*/
 async function stageImport(temp: string, entry: Awaited<ReturnType<typeof readImports>>[number]) {
   const checkout = path.join(temp, entry.name);
   const source = await checkoutImport(checkout, entry);
@@ -135,13 +156,18 @@ async function stageImport(temp: string, entry: Awaited<ReturnType<typeof readIm
   const staged = path.join(temp, entry.name + "-content");
 
   await cp(source, staged, { recursive: true });
-  await cp(license, path.join(staged, UPSTREAM_LICENSE));
+  await cp(license, path.join(staged, "UPSTREAM-LICENSE"));
   await applyImportPolicy(staged, entry);
 }
 
+/**
+Resolve imports and replace markers with staged content.
+@param output - Separate build root receiving imported directories.
+@param entries - Validated imports to materialize in the build root.
+*/
 async function materializeImports(output: string, entries: Awaited<ReturnType<typeof readImports>>) {
   const destinationRoot = output;
-  const temporaryDirectory = await mkdtemp(path.join(tmpdir(), AGENTS_IMPORT));
+  const temporaryDirectory = await mkdtemp(path.join(tmpdir(), "agents-import-"));
   const temp = await realpath(temporaryDirectory);
 
   async function stageAndCopy() {
@@ -168,14 +194,24 @@ async function materializeImports(output: string, entries: Awaited<ReturnType<ty
   }
 }
 
+/**
+Require a build destination separate from the authored repository.
+@param root - Authored repository root that must remain unchanged.
+@param output - Requested build destination, if supplied.
+@returns The accepted build destination.
+*/
 function requireImportOutput(root: string, output: string | undefined) {
   if (!output || path.resolve(output) === root) {
-    throw new Error(IMPORTS_MUST_RESOLVE_INTO_A_SEPARATE_BUILD);
+    throw new Error("Imports must resolve into a separate build directory");
   }
 
   return output;
 }
 
+/**
+Validate import declarations and optionally materialize their content.
+@param options - Repository root, separate output directory, and validation-only flag.
+*/
 export async function syncImports({
   root = ROOT,
   output,

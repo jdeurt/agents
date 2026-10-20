@@ -9,23 +9,21 @@ import { filesIn } from "./build-files.ts";
 import { jsonRecord } from "./validation.ts";
 import path from "node:path";
 
-const PUBLICATION_REQUIRES_PLAIN_SEMANTIC_VERSIONS = "Publication requires plain semantic versions";
-
-const PLUGIN_JSON = "plugin.json";
-const CODEX_PLUGIN_PLUGIN_JSON = ".codex-plugin/plugin.json";
-const CLAUDE_PLUGIN_PLUGIN_JSON = ".claude-plugin/plugin.json";
-
-const PUBLICATION_JSON = ".publication.json";
-
 export type ReleaseState = Record<string, { hash: string; version: string } | undefined>;
 export const releaseStateSchema = z.record(z.string(), z.object({ hash: z.string(), version: z.string() }));
 
+/**
+Choose the authored version or advance the published patch version.
+@param base - Authored semantic version to compare.
+@param previous - Previously published semantic version, when available.
+@returns The authored version when no prior release exists or it is newer, otherwise the next published patch version.
+*/
 export function nextVersion(base: string, previous?: string) {
   const a = base.split(".").map(Number),
     b = previous ? previous.split(".").map(Number) : undefined;
 
   if (!/^\d+\.\d+\.\d+$/.test(base) || (previous && !/^\d+\.\d+\.\d+$/.test(previous))) {
-    throw new Error(PUBLICATION_REQUIRES_PLAIN_SEMANTIC_VERSIONS);
+    throw new Error("Publication requires plain semantic versions");
   }
 
   if (!b) {
@@ -47,12 +45,24 @@ export function nextVersion(base: string, previous?: string) {
   return b.join(".");
 }
 
+/**
+Update the version field in one plugin manifest.
+@param filename - Manifest path whose other fields must remain intact.
+@param version - Release version to serialize.
+*/
 async function writeVersion(filename: string, version: string) {
   const value = jsonRecord.parse(JSON.parse(await readFile(filename, "utf8")));
 
   await writeFile(filename, JSON.stringify({ ...value, version }, undefined, 2) + "\n");
 }
 
+/**
+Version changed plugin content and write publication state.
+@param output - Generated marketplace root containing client distributions.
+@param registry - Plugin declarations supplying authored versions and clients.
+@param previous - Prior content hashes and published versions.
+@returns The content hash and selected version for each client plugin.
+*/
 export async function releaseVersions(output: string, registry: Registry, previous: ReleaseState = {}) {
   const state: ReleaseState = {};
 
@@ -65,7 +75,7 @@ export async function releaseVersions(output: string, registry: Registry, previo
       const version = prior?.hash === hash ? prior.version : nextVersion(plugin.version, prior?.version);
       const files = await filesIn(directory);
 
-      for (const manifest of [PLUGIN_JSON, CODEX_PLUGIN_PLUGIN_JSON, CLAUDE_PLUGIN_PLUGIN_JSON]) {
+      for (const manifest of ["plugin.json", ".codex-plugin/plugin.json", ".claude-plugin/plugin.json"]) {
         const filename = path.join(directory, manifest);
 
         if (!files.includes(manifest)) {
@@ -79,7 +89,7 @@ export async function releaseVersions(output: string, registry: Registry, previo
     }
   }
 
-  await writeFile(path.join(output, PUBLICATION_JSON), JSON.stringify(state, undefined, 2) + "\n");
+  await writeFile(path.join(output, ".publication.json"), JSON.stringify(state, undefined, 2) + "\n");
 
   return state;
 }

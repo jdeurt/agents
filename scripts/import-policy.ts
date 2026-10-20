@@ -8,28 +8,6 @@ import { jsonRecord } from "./validation.ts";
 import { parseSkillFrontmatter } from "./file-validation.ts";
 import path from "node:path";
 
-const RELATIVE_HIDDEN_MCP_PATH = "./.mcp.json";
-
-const PLUGIN_JSON = "plugin.json";
-const CODEX_PLUGIN_PLUGIN_JSON = ".codex-plugin/plugin.json";
-const CLAUDE_PLUGIN_PLUGIN_JSON = ".claude-plugin/plugin.json";
-
-const UPSTREAM_LICENSE = "UPSTREAM-LICENSE";
-
-const IMPORT_RESTRICTIONS = "\n\n## Import restrictions\n\n";
-const THIS_PACKAGE_INTENTIONALLY_OMITS_THE_FOLLOWING_FILES =
-  "This package intentionally omits the following files or executable integrations ";
-const UNDER_ITS_IMPORTS_TOML_POLICY = "under its imports.toml policy:\n\n";
-const DO_NOT_DOWNLOAD_INSTALL_RECREATE_OR_EXECUTE =
-  "\n\nDo not download, install, recreate, or execute the omitted components to work around this policy. ";
-const USE_THE_INCLUDED_RESOURCES_IF_A_TASK =
-  "Use the included resources; if a task requires an omitted component, explain the limitation and ask the user ";
-const TO_UPDATE_THE_IMPORT_POLICY_INCLUDED_SCRIPTS =
-  "to update the import policy. Included scripts still require the host's normal execution permissions.\n";
-const IMPORT_POLICY_MD = "IMPORT-POLICY.md";
-
-const IMPORTED_SKILL_VERSION_MUST_BE_A_STRING = "Imported skill version must be a string";
-const IMPORTED_SKILL_VERSION_CONFLICTS_WITH_METADATA = "Imported skill version conflicts with metadata.version";
 const versionMetadataSchema = z.record(z.string(), z.string());
 
 const CODE = /\.(?:[cm]?[jt]sx?|sh|bash|zsh|fish|py|rb|pl|php|ps1|bat|cmd|exe|dll|so|dylib|wasm)$/i;
@@ -40,17 +18,31 @@ const surfaceSchema = z.looseObject({
   mcpServers: z.optional(z.unknown()),
 });
 
+/**
+Merge an imported version into validated metadata.
+@param metadata - Existing metadata to validate, or undefined when absent.
+@param version - Imported version that must agree with existing metadata.
+@returns Metadata containing the imported version.
+*/
 function normalizedVersionMetadata(metadata: unknown, version: string) {
   const parsed = metadata === undefined ? {} : versionMetadataSchema.parse(metadata);
   const existingVersion: unknown = Reflect.get(parsed, "version");
 
   if (existingVersion !== undefined && existingVersion !== version) {
-    throw new Error(IMPORTED_SKILL_VERSION_CONFLICTS_WITH_METADATA);
+    throw new Error("Imported skill version conflicts with metadata.version");
   }
 
   return { ...parsed, version };
 }
 
+/**
+Move a top-level version into serialized skill metadata.
+@param source - Complete skill text whose body must remain intact.
+@param document - Parsed frontmatter containing the imported version.
+@param offset - Position immediately after the original frontmatter.
+@param version - Version to preserve in metadata.
+@returns The normalized frontmatter followed by the original body.
+*/
 function serializedImportedVersion(source: string, document: object, offset: number, version: string) {
   const original = jsonRecord.parse(document);
   const metadata = normalizedVersionMetadata(original.metadata, version);
@@ -61,6 +53,11 @@ function serializedImportedVersion(source: string, document: object, offset: num
   return `---\n${Bun.YAML.stringify(normalized, undefined, 2).trimEnd()}\n---` + source.slice(offset);
 }
 
+/**
+Normalize version metadata in one imported skill.
+@param source - Complete imported skill text.
+@returns The original text or text with its version moved into metadata.
+*/
 function normalizeImportedVersion(source: string) {
   const { document, header } = parseSkillFrontmatter(source);
   const version: unknown = Reflect.get(document, "version");
@@ -70,12 +67,17 @@ function normalizeImportedVersion(source: string) {
   }
 
   if (typeof version !== "string") {
-    throw new TypeError(IMPORTED_SKILL_VERSION_MUST_BE_A_STRING);
+    throw new TypeError("Imported skill version must be a string");
   }
 
   return serializedImportedVersion(source, document, header.position.end.offset, version);
 }
 
+/**
+Normalize version metadata in imported skill files.
+@param directory - Imported content root containing the listed files.
+@param files - Relative paths available in the imported content.
+*/
 async function normalizeImportedVersions(directory: string, files: string[]) {
   const skills = files.filter((file) => path.basename(file) === "SKILL.md");
 
@@ -90,13 +92,12 @@ async function normalizeImportedVersions(directory: string, files: string[]) {
   }
 }
 
-function omitLocalServer(servers: object, name: string, file: string, omitted: string[]) {
-  const omission = `${file}: local MCP ${name}`;
-
-  Reflect.deleteProperty(servers, name);
-  omitted.push(omission);
-}
-
+/**
+Remove executable local servers and record each omission.
+@param servers - Mutable server entries parsed from an MCP configuration.
+@param file - Relative configuration path used in omission notes.
+@param omitted - Omission notes extended for each removed server.
+*/
 function restrictServerEntries(servers: object, file: string, omitted: string[]) {
   const entries = Object.entries(jsonRecord.parse(servers));
 
@@ -109,10 +110,18 @@ function restrictServerEntries(servers: object, file: string, omitted: string[])
       continue;
     }
 
-    omitLocalServer(servers, name, file, omitted);
+    Reflect.deleteProperty(servers, name);
+    omitted.push(`${file}: local MCP ${name}`);
   }
 }
 
+/**
+Remove local MCP servers unless the import allows them.
+@param surface - Mutable manifest or MCP configuration to filter.
+@param file - Relative configuration path used to identify its format.
+@param entry - Import declaration that controls local MCP permission.
+@param omitted - Omission notes extended by removed integrations.
+*/
 function restrictLocalServers(
   surface: z.infer<typeof surfaceSchema>,
   file: string,
@@ -128,6 +137,13 @@ function restrictLocalServers(
   restrictServerEntries(servers, file, omitted);
 }
 
+/**
+Filter executable integrations from one imported manifest surface.
+@param surface - Mutable manifest or extension settings to filter.
+@param file - Relative configuration path used in omission notes.
+@param entry - Import declaration that controls executable integrations.
+@param omitted - Omission notes extended by removed integrations.
+*/
 function restrictSurface(
   surface: z.infer<typeof surfaceSchema>,
   file: string,
@@ -142,30 +158,37 @@ function restrictSurface(
   // Local MCP commands are executable entrypoints, including inline commands.
   // Require an explicit script policy AND local_mcp opt-in.
   if (!entry.local_mcp && Array.isArray(surface.mcpServers)) {
-    const omission = `${file}: referenced MCP configurations`;
-
     delete surface.mcpServers;
-    omitted.push(omission);
+    omitted.push(`${file}: referenced MCP configurations`);
   }
 
   if (
     !entry.local_mcp &&
     typeof surface.mcpServers === "string" &&
-    ![RELATIVE_HIDDEN_MCP_PATH, "./mcp.json", ".mcp.json", "mcp.json"].includes(surface.mcpServers)
+    !["./.mcp.json", "./mcp.json", ".mcp.json", "mcp.json"].includes(surface.mcpServers)
   ) {
-    const omission = `${file}: custom MCP configuration`;
-
     delete surface.mcpServers;
-    omitted.push(omission);
+    omitted.push(`${file}: custom MCP configuration`);
   }
 
   restrictLocalServers(surface, file, entry, omitted);
 }
 
+/**
+Apply executable integration restrictions to imported configuration files.
+@param directory - Imported content root containing the configurations.
+@param entry - Import declaration that supplies integration permissions.
+@param files - Available relative paths used to select configurations.
+@param omitted - Omission notes extended by filtered configurations.
+*/
 async function restrictManifests(directory: string, entry: ExternalImport, files: string[], omitted: string[]) {
-  const manifests = [PLUGIN_JSON, CODEX_PLUGIN_PLUGIN_JSON, CLAUDE_PLUGIN_PLUGIN_JSON, ".mcp.json", "mcp.json"].filter(
-    (file) => files.includes(file)
-  );
+  const manifests = [
+    "plugin.json",
+    ".codex-plugin/plugin.json",
+    ".claude-plugin/plugin.json",
+    ".mcp.json",
+    "mcp.json",
+  ].filter((file) => files.includes(file));
 
   for (const file of manifests) {
     const source = await readFile(path.join(directory, file), "utf8");
@@ -181,29 +204,41 @@ async function restrictManifests(directory: string, entry: ExternalImport, files
   }
 }
 
+/**
+Reject explicitly allowed scripts that do not exist.
+@param files - Available relative paths in the imported content.
+@param allowed - Allowed script paths or the all-scripts setting.
+@param entry - Import declaration named in validation failures.
+*/
 function validateAllowedScripts(files: string[], allowed: string | string[], entry: ExternalImport) {
   if (Array.isArray(allowed)) {
     for (const file of allowed) {
       if (!files.includes(file)) {
-        const message = `${entry.name}: allowed script does not exist: ${file}`;
-
-        throw new Error(message);
+        throw new Error(`${entry.name}: allowed script does not exist: ${file}`);
       }
     }
   }
 }
 
+/**
+Document omitted components in skills and a package policy file.
+@param directory - Imported content root receiving the policy notes.
+@param files - Available paths used to find included skills.
+@param omitted - Removed components and integrations to describe.
+*/
 async function writePolicyNotes(directory: string, files: string[], omitted: string[]) {
   const intro =
-    IMPORT_RESTRICTIONS + THIS_PACKAGE_INTENTIONALLY_OMITS_THE_FOLLOWING_FILES + UNDER_ITS_IMPORTS_TOML_POLICY;
+    "\n\n## Import restrictions\n\n" +
+    "This package intentionally omits the following files or executable integrations " +
+    "under its imports.toml policy:\n\n";
   const list = omitted
     .toSorted((a, b) => a.localeCompare(b))
     .map((file) => `- ${file}`)
     .join("\n");
   const outro =
-    DO_NOT_DOWNLOAD_INSTALL_RECREATE_OR_EXECUTE +
-    USE_THE_INCLUDED_RESOURCES_IF_A_TASK +
-    TO_UPDATE_THE_IMPORT_POLICY_INCLUDED_SCRIPTS;
+    "\n\nDo not download, install, recreate, or execute the omitted components to work around this policy. " +
+    "Use the included resources; if a task requires an omitted component, explain the limitation and ask the user " +
+    "to update the import policy. Included scripts still require the host's normal execution permissions.\n";
   const note = intro + list + outro;
   const skills = files.filter((file) => path.basename(file) === "SKILL.md");
 
@@ -213,15 +248,22 @@ async function writePolicyNotes(directory: string, files: string[], omitted: str
     await writeFile(path.join(directory, file), original.trimEnd() + note);
   }
 
-  await writeFile(path.join(directory, IMPORT_POLICY_MD), note.trimStart());
+  await writeFile(path.join(directory, "IMPORT-POLICY.md"), note.trimStart());
 }
 
+/**
+Filter imported content and normalize skill metadata.
+@param directory - Staged imported content to modify.
+@param entry - Import declaration that controls retained code and integrations.
+*/
 export async function applyImportPolicy(directory: string, entry: ExternalImport) {
   const files = await filesIn(directory);
   const allowed = entry.scripts ?? [];
 
   const omitted: string[] = [];
-  const executableCandidates = files.filter((file) => file !== UPSTREAM_LICENSE && path.basename(file) !== "SKILL.md");
+  const executableCandidates = files.filter(
+    (file) => file !== "UPSTREAM-LICENSE" && path.basename(file) !== "SKILL.md"
+  );
 
   validateAllowedScripts(files, allowed, entry);
 

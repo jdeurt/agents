@@ -13,12 +13,7 @@ const rules = {
   chained: "no-restricted-syntax",
   unsafe: "@typescript-eslint/no-unsafe-type-assertion",
 };
-const titles = {
-  spacing: "authored statement spacing separates imports, variable groups, classes, and functions",
-  overloads: "class member spacing preserves method and constructor overload groups",
-  assertions: "chained assertions are rejected in both TypeScript assertion syntaxes",
-  typed: "type-aware assertion restrictions reject narrowing and accept checked input and widening",
-};
+
 const spacingCases = [
   { source: "inspect();\nif (value) { inspect(); }", count: 1 },
   { source: "inspect();\n\nif (value) { inspect(); }", count: 0 },
@@ -139,22 +134,28 @@ const fixture = {
     '{"compilerOptions":{"strict":true,"target":"ESNext","module":"ESNext","moduleResolution":"Bundler","noEmit":true},"include":["*.ts"]}',
 };
 
-test(titles.spacing, async () => {
+test("authored statement spacing separates imports, variable groups, classes, and functions", async () => {
   for (const extension of ["js", "ts"]) {
     await assertLintCases(spacingCases, rules.padding, { extension });
   }
 });
 
-test(titles.overloads, async () => {
+test("class member spacing preserves method and constructor overload groups", async () => {
   for (const extension of ["js", "ts"]) {
     await assertLintCases(memberCases, rules.members, { extension });
   }
 });
 
-test(titles.assertions, async () => {
+test("chained assertions are rejected in both TypeScript assertion syntaxes", async () => {
   await assertLintCases(assertionCases, rules.chained, { extension: "ts" });
 });
 
+/**
+Check a typed fixture's diagnostics against its expected assertion findings.
+@param eslint - Configured ESLint engine using the fixture TypeScript project.
+@param filePath - Typed source fixture to lint.
+@param example - Expected assertion diagnostic count and source context.
+*/
 async function inspectTypedFile(eslint: ESLint, filePath: string, example: LintExample) {
   const results = await eslint.lintFiles([filePath]);
   const diagnostics = results.flatMap((result) => result.messages);
@@ -168,6 +169,10 @@ async function inspectTypedFile(eslint: ESLint, filePath: string, example: LintE
   assert.equal(matching.length, example.count, example.source);
 }
 
+/**
+Lint one source example in a temporary strict TypeScript project.
+@param example - Source snippet and expected unsafe-assertion diagnostic count.
+*/
 async function assertTypedCase(example: LintExample) {
   const directory = await mkdtemp(path.join(tmpdir(), fixture.prefix));
   const filePath = path.join(directory, fixture.filename);
@@ -186,7 +191,7 @@ async function assertTypedCase(example: LintExample) {
   }
 }
 
-test(titles.typed, async () => {
+test("type-aware assertion restrictions reject narrowing and accept checked input and widening", async () => {
   for (const example of typedCases) {
     await assertTypedCase(example);
   }

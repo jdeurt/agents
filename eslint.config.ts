@@ -3,6 +3,7 @@
 import { defineConfig } from "eslint/config";
 import { fileURLToPath } from "node:url";
 import js from "@eslint/js";
+import jsdoc from "eslint-plugin-jsdoc";
 import policy from "./eslint-rules.ts";
 import prettierOptions from "./prettier.config.mjs";
 import prettierRecommended from "eslint-plugin-prettier/recommended";
@@ -12,8 +13,6 @@ import stylistic from "@stylistic/eslint-plugin";
 import tseslint from "typescript-eslint";
 import unicorn from "eslint-plugin-unicorn";
 
-const RECOMMENDED_LATEST = "recommended-latest";
-
 const NODE_MODULES = "node_modules/**";
 const MARKETPLACE_BUILD = ".marketplace-build/**";
 const MARKETPLACE_VERIFY = ".marketplace-verify/**";
@@ -22,8 +21,6 @@ const CHAINED_TYPE_ASSERTION_SELECTOR =
   ":matches(TSAsExpression, TSTypeAssertion) > :matches(TSAsExpression, TSTypeAssertion)";
 const CHAINED_TYPE_ASSERTION_MESSAGE = "Validate the value instead of chaining type assertions.";
 const JSX_TSX = "**/*.{jsx,tsx}";
-
-const UNICORN_NO_NESTED_TERNARY = "unicorn/no-nested-ternary";
 
 const VARIABLE_DECLARATION_SELECTOR =
   ":matches(VariableDeclaration[kind='const'], VariableDeclaration[kind='let'], ExportNamedDeclaration[declaration.kind='const'], ExportNamedDeclaration[declaration.kind='let'])";
@@ -39,7 +36,65 @@ const EXPORTED_CLASS_SELECTOR =
   ":matches(ExportNamedDeclaration, ExportDefaultDeclaration)[declaration.type='ClassDeclaration']";
 const COMPLETED_SWITCH_CASE_SELECTOR = "SwitchCase[consequent.length>0]";
 
-// The build copies this source and bundles these pinned dependencies for Engineering.
+const DOCUMENTED_METHOD_FUNCTIONS =
+  ":matches(MethodDefinition, TSAbstractMethodDefinition) > " +
+  ":matches(FunctionExpression, TSEmptyBodyFunctionExpression)";
+const DOCUMENTED_CALLABLE = ":matches(ArrowFunctionExpression, FunctionExpression)";
+const TRANSPARENT_TYPESCRIPT = ":matches(TSSatisfiesExpression, TSAsExpression, TSTypeAssertion)";
+const TOP_LEVEL_INITIALIZERS = [
+  "Program > VariableDeclaration > VariableDeclarator",
+  "Program > ExportNamedDeclaration > VariableDeclaration > VariableDeclarator",
+  "Program > ExportDefaultDeclaration",
+];
+const DOCUMENTED_FUNCTIONS = [
+  "Program > :matches(FunctionDeclaration, TSDeclareFunction)",
+  "Program > :matches(ExportNamedDeclaration, ExportDefaultDeclaration) > " +
+    ":matches(FunctionDeclaration, TSDeclareFunction)",
+  ...TOP_LEVEL_INITIALIZERS.flatMap((root) => [
+    root + " > " + DOCUMENTED_CALLABLE,
+    root +
+      " > " +
+      TRANSPARENT_TYPESCRIPT +
+      " " +
+      DOCUMENTED_CALLABLE +
+      ":not(" +
+      root +
+      " > " +
+      TRANSPARENT_TYPESCRIPT +
+      " :not(" +
+      TRANSPARENT_TYPESCRIPT +
+      ") " +
+      DOCUMENTED_CALLABLE +
+      ")",
+  ]),
+  DOCUMENTED_METHOD_FUNCTIONS,
+  ...["", TRANSPARENT_TYPESCRIPT + " > ", TRANSPARENT_TYPESCRIPT + " > " + TRANSPARENT_TYPESCRIPT + " > "].map(
+    (wrappers) => "PropertyDefinition > " + wrappers + DOCUMENTED_CALLABLE
+  ),
+];
+const VALUE_RETURN_SIGNATURE =
+  ":matches(TSDeclareFunction, TSEmptyBodyFunctionExpression)[returnType]" +
+  ":not([returnType.typeAnnotation.type='TSVoidKeyword'])" +
+  ":not([returnType.typeAnnotation.type='TSUndefinedKeyword'])" +
+  ":not([returnType.typeAnnotation.type='TSNeverKeyword'])" +
+  ":not([returnType.typeAnnotation.typeName.name='Promise']" +
+  "[returnType.typeAnnotation.typeArguments.params.0.type='TSVoidKeyword'])" +
+  ":not([returnType.typeAnnotation.typeName.name='Promise']" +
+  "[returnType.typeAnnotation.typeArguments.params.0.type='TSUndefinedKeyword'])" +
+  ":not([returnType.typeAnnotation.typeName.name='Promise']" +
+  "[returnType.typeAnnotation.typeArguments.params.0.type='TSNeverKeyword'])";
+const RETURN_CONTEXTS = [
+  ...DOCUMENTED_FUNCTIONS.map((context) => context + ":not(" + VALUE_RETURN_SIGNATURE + ")"),
+  { context: VALUE_RETURN_SIGNATURE, forceRequireReturn: true },
+];
+const DOCUMENTED_CONTEXTS = [...DOCUMENTED_FUNCTIONS, "ClassDeclaration", "ClassExpression"];
+const REQUIRED_DOCUMENTATION = [
+  ...DOCUMENTED_CONTEXTS.filter((context) => context !== DOCUMENTED_METHOD_FUNCTIONS),
+  "MethodDefinition",
+  "TSAbstractMethodDefinition",
+];
+
+// The build copies this source into Engineering; the skill lists its required dependencies.
 const resolutionRoot = fileURLToPath(new URL(".", import.meta.url));
 
 // Keep each omission tied to an actual conflict; eslint-config-prettier also disables compatible rules.
@@ -58,10 +113,15 @@ export const stylisticConflicts: Record<string, string> = {
   "@stylistic/multiline-ternary": "Prettier can wrap a ternary branch while retaining its condition and operator line.",
 };
 
+/**
+Assemble the shared formatting, documentation, and code-quality policy.
+@param options - Whether to enable project type information and where to resolve it.
+@returns Ordered ESLint configurations for repository source and bundled reuse.
+*/
 export function createConfig(options: { typed?: boolean; tsconfigRootDir?: string } = {}) {
   const files = ["**/*.{ts,tsx,js,jsx,mjs,cjs,mts,cts}"];
   const tsFiles = ["**/*.{ts,tsx,mts,cts}"];
-  const reactRules = reactHooks.configs.flat[RECOMMENDED_LATEST].rules;
+  const reactRules = reactHooks.configs.flat["recommended-latest"].rules;
 
   return defineConfig([
     { ignores: ["dist/**", NODE_MODULES, MARKETPLACE_BUILD, MARKETPLACE_VERIFY] },
@@ -153,14 +213,39 @@ export function createConfig(options: { typed?: boolean; tsconfigRootDir?: strin
       rules: {
         "prettier/prettier": ["error", prettierOptions, { usePrettierrc: false }],
         curly: ["error", "all"],
-        "unicorn/no-nested-ternary": unicorn.configs.recommended.rules?.[UNICORN_NO_NESTED_TERNARY] ?? "error",
+        "unicorn/no-nested-ternary": unicorn.configs.recommended.rules?.["unicorn/no-nested-ternary"] ?? "error",
+      },
+    },
+    {
+      files,
+      plugins: { jsdoc },
+      settings: { jsdoc: { mode: "typescript", contexts: DOCUMENTED_CONTEXTS } },
+      rules: {
+        "jsdoc/require-jsdoc": [
+          "error",
+          {
+            contexts: REQUIRED_DOCUMENTATION,
+            require: { FunctionDeclaration: false },
+            enableFixer: false,
+            exemptEmptyConstructors: false,
+            skipInterveningOverloadedDeclarations: true,
+          },
+        ],
+        "jsdoc/require-description": "error",
+        "jsdoc/require-param": [
+          "error",
+          { checkDestructured: false, checkDestructuredRoots: true, checkSetters: true, enableFixer: false },
+        ],
+        "jsdoc/check-param-names": ["error", { checkDestructured: false, allowExtraTrailingParamDocs: true }],
+        "jsdoc/require-param-description": "error",
+        "jsdoc/require-returns": ["error", { contexts: RETURN_CONTEXTS, checkConstructors: false, checkGetters: true }],
+        "jsdoc/require-returns-description": "error",
       },
     },
     {
       files,
       plugins: { "@stylistic": stylistic, jdeurt: policy },
       rules: {
-        "jdeurt/no-magic-strings": "error",
         "jdeurt/const-on-top": "error",
         "@stylistic/lines-between-class-members": [
           "error",

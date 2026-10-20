@@ -19,6 +19,11 @@ export const externalImport = z.strictObject({
   local_mcp: z.optional(z.boolean()),
 });
 
+/**
+Parse JSON and require an object with string keys.
+@param source - Untrusted serialized JSON object.
+@returns The validated record of unknown values.
+*/
 export function parseJsonRecord(source: string) {
   return jsonRecord.parse(JSON.parse(source));
 }
@@ -67,6 +72,11 @@ const registry = z.strictObject({
   plugins: z.array(plugin),
 });
 
+/**
+Validate marketplace structure and registry consistency.
+@param value - Untrusted marketplace configuration value.
+@returns The validated marketplace registry.
+*/
 export function parseRegistry(value: unknown): Registry {
   const parsed = registry.parse(value);
 

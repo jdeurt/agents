@@ -11,30 +11,25 @@ import path from "node:path";
 const REQUIRED_ADD_ARGS = 6;
 const MARKETPLACE_TOML = "marketplace.toml";
 
-const MARKETPLACE_BUILD = ".marketplace-build";
-const RESOLVED_LATEST_IMPORTS_AND_BUILT_MARKETPLACE_BUILD = "Resolved latest imports and built .marketplace-build/.";
-
-const USAGE_IMPORTS_ADD_SKILL_PLUGIN_NAME_GITHUB =
-  "Usage: imports:add <skill|plugin> <name> <GitHub URL> <source path> <destination> ";
-const LICENSE_PATH_REF_REF_HARNESS_CODEX_CLAUDE = "<license path> [--ref ref] [--harness codex|claude|both]";
-
-const UNKNOWN_OR_DUPLICATE_OPTION = "Unknown or duplicate option";
-
-const PLUGIN_IMPORTS_REQUIRE_HARNESS_CODEX_CLAUDE_BOTH = "Plugin imports require --harness codex|claude|both";
 const IMPORTS_TOML = "imports.toml";
 
-const SKILL_IMPORTS_REQUIRE_AN_EXISTING_COMPILED_PLUGIN = "Skill imports require an existing compiled plugin";
-const PLUGIN_ALREADY_REGISTERED = "Plugin already registered";
-
-const DEVELOPMENT = "Development";
-const USAGE_BUN_SCRIPTS_IMPORTS_TS_ADD_REMOVE = "Usage: bun scripts/imports.ts <add|remove|sync|check>";
-
+/**
+Read and validate the authored marketplace registry.
+@param root - Repository containing marketplace.toml.
+@returns The validated marketplace registry.
+*/
 async function readRegistry(root: string) {
   const registryContents = await readFile(path.join(root, MARKETPLACE_TOML), "utf8");
 
   return parseRegistry(Bun.TOML.parse(registryContents));
 }
 
+/**
+Validate import markers before loading the marketplace registry.
+@param root - Repository containing markers and marketplace.toml.
+@param entries - Import declarations whose markers require validation.
+@returns The validated marketplace registry.
+*/
 async function loadRegistry(root: string, entries: ExternalImport[]) {
   await validateMarkers(root, entries);
 
@@ -45,24 +40,39 @@ const root = await realpath(process.cwd());
 const [command, ...args] = process.argv.slice(2);
 const entries = await readImports(root);
 const registry = await loadRegistry(root, entries);
+/**
+Persist the current in-memory marketplace registry.
+*/
 const saveRegistry = async () => {
   const contents = Bun.TOML.stringify(registry);
 
   await writeFile(path.join(root, MARKETPLACE_TOML), contents);
 };
 
+/**
+Validate the positional arguments and option pairs for an import addition.
+@param requestArgs - Arguments following the add command.
+*/
 function validateAddArgs(requestArgs: string[]) {
   if (requestArgs.length < REQUIRED_ADD_ARGS || (requestArgs.length - REQUIRED_ADD_ARGS) % 2) {
-    throw new Error(USAGE_IMPORTS_ADD_SKILL_PLUGIN_NAME_GITHUB + LICENSE_PATH_REF_REF_HARNESS_CODEX_CLAUDE);
+    throw new Error(
+      "Usage: imports:add <skill|plugin> <name> <GitHub URL> <source path> <destination> " +
+        "<license path> [--ref ref] [--harness codex|claude|both]"
+    );
   }
 }
 
+/**
+Parse supported import options and reject duplicate flags.
+@param flags - Alternating option names and values.
+@returns Supported options indexed by their flag names.
+*/
 function parseImportOptions(flags: string[]) {
   const options = new Map<string, string>();
 
   for (let i = 0; i < flags.length; i += 2) {
     if (!["--ref", "--harness"].includes(flags[i]) || options.has(flags[i])) {
-      throw new Error(UNKNOWN_OR_DUPLICATE_OPTION);
+      throw new Error("Unknown or duplicate option");
     }
 
     options.set(flags[i], flags[i + 1]);
@@ -71,19 +81,27 @@ function parseImportOptions(flags: string[]) {
   return options;
 }
 
+/**
+Append a native plugin entry to the in-memory registry.
+@param pluginName - Registry name derived from the import destination.
+@param harness - Requested client, or both for both supported clients.
+*/
 function registerPlugin(pluginName: string, harness: string | undefined) {
-  const description = `Imported ${pluginName} plugin.`;
-
   registry.plugins.push({
     name: pluginName,
     version: "1.0.0",
-    description,
-    category: DEVELOPMENT,
+    description: `Imported ${pluginName} plugin.`,
+    category: "Development",
     harnesses: harness === "both" ? ["claude", "codex"] : [z.enum(["claude", "codex"]).parse(harness)],
     native: true,
   });
 }
 
+/**
+Stage an import addition and restore configuration on failure.
+@param entry - Import declaration to validate and persist.
+@param harness - Client selection used when registering a native plugin.
+*/
 async function applyImportAddition(entry: ExternalImport, harness: string | undefined) {
   const original = await readFile(path.join(root, IMPORTS_TOML), "utf8");
 
@@ -95,10 +113,8 @@ async function applyImportAddition(entry: ExternalImport, harness: string | unde
 
     for (const target of [entry.destination, entry.destination + ".import"]) {
       try {
-        const message = `Destination exists: ${target}`;
-
         await lstat(path.join(root, target));
-        throw new Error(message);
+        throw new Error(`Destination exists: ${target}`);
       } catch (error) {
         if (!(error instanceof Error && Reflect.get(error, "code") === "ENOENT")) {
           throw error;
@@ -107,11 +123,11 @@ async function applyImportAddition(entry: ExternalImport, harness: string | unde
     }
 
     if (entry.kind === "skill" && registry.plugins.every((plugin) => !(plugin.name === pluginName && !plugin.native))) {
-      throw new Error(SKILL_IMPORTS_REQUIRE_AN_EXISTING_COMPILED_PLUGIN);
+      throw new Error("Skill imports require an existing compiled plugin");
     }
 
     if (entry.kind === "plugin" && registry.plugins.some((plugin) => plugin.name === pluginName)) {
-      throw new Error(PLUGIN_ALREADY_REGISTERED);
+      throw new Error("Plugin already registered");
     }
 
     await writeMarker(root, entry);
@@ -132,6 +148,10 @@ async function applyImportAddition(entry: ExternalImport, harness: string | unde
   }
 }
 
+/**
+Parse an import addition and apply its validated declaration.
+@param requestArgs - Positional import fields followed by option pairs.
+*/
 async function addImport(requestArgs: string[]) {
   const [kind, name, repository, source, destination, license, ...flags] = requestArgs;
 
@@ -148,29 +168,25 @@ async function addImport(requestArgs: string[]) {
   const harness = options.get("--harness");
 
   if (kind === "plugin" && !["codex", "claude", "both"].includes(harness ?? "")) {
-    throw new Error(PLUGIN_IMPORTS_REQUIRE_HARNESS_CODEX_CLAUDE_BOTH);
+    throw new Error("Plugin imports require --harness codex|claude|both");
   }
 
   await applyImportAddition(entry, harness);
 }
 
 if (command === "check" && args.length === 0) {
-  const message = `Validated ${String(entries.length)} imports and markers.`;
-
-  console.log(message);
+  console.log(`Validated ${String(entries.length)} imports and markers.`);
 } else if (command === "sync" && args.length === 0) {
   await buildMarketplace({
     root,
-    output: path.join(root, MARKETPLACE_BUILD),
+    output: path.join(root, ".marketplace-build"),
   });
-  console.log(RESOLVED_LATEST_IMPORTS_AND_BUILT_MARKETPLACE_BUILD);
+  console.log("Resolved latest imports and built .marketplace-build/.");
 } else if (command === "remove" && args.length === 1) {
   const entry = entries.find((item) => item.name === args[0]);
 
   if (!entry) {
-    const message = `Unknown import: ${args[0]}`;
-
-    throw new Error(message);
+    throw new Error(`Unknown import: ${args[0]}`);
   }
 
   await rm(path.join(root, entry.destination + ".import"));
@@ -187,5 +203,5 @@ if (command === "check" && args.length === 0) {
   validateAddArgs(args);
   await addImport(args);
 } else {
-  throw new Error(USAGE_BUN_SCRIPTS_IMPORTS_TS_ADD_REMOVE);
+  throw new Error("Usage: bun scripts/imports.ts <add|remove|sync|check>");
 }

@@ -5,56 +5,59 @@ const HARNESSES = new Set(["claude", "codex"]);
 const NAME = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 const VERSION = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/;
 
-function requiredTextError(label: string) {
-  const message = `${label} must be a non-empty string`;
-
-  return new Error(message);
-}
-
+/**
+Require a string that is not empty after trimming whitespace.
+@param value - Field value to validate.
+@param label - Field name to include in an error message.
+*/
 function requireText(value: unknown, label: string) {
   if (typeof value !== "string" || !value.trim()) {
-    throw requiredTextError(label);
+    throw new Error(`${label} must be a non-empty string`);
   }
 }
 
+/**
+Require a table and reject fields outside its permitted field names.
+@param value - Registry value to validate as a table.
+@param allowed - Field names permitted in the table.
+@param label - Table name to include in an error message.
+*/
 function fields(value: unknown, allowed: string[], label: string): asserts value is Record<string, unknown> {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
-    const invalidTableMessage = `${label} must be a table`;
-
-    throw new Error(invalidTableMessage);
+    throw new Error(`${label} must be a table`);
   }
 
   for (const key of Object.keys(value)) {
     if (!allowed.includes(key)) {
-      const unknownFieldMessage = `${label}: unknown field ${key}`;
-
-      throw new Error(unknownFieldMessage);
+      throw new Error(`${label}: unknown field ${key}`);
     }
   }
 }
 
+/**
+Validate marketplace metadata, plugin identities, versions, and supported harnesses.
+@param registry - Parsed registry whose marketplace and plugin fields must be checked.
+*/
 function validateRegistryFields(registry: Registry) {
   const marketplace = registry.marketplace;
   const names = new Set<string>();
 
-  fields(registry.marketplace, ["name", values.DISPLAY_NAME, "owner", values.DESCRIPTION], values.MARKETPLACE);
+  fields(registry.marketplace, ["name", "display_name", "owner", values.DESCRIPTION], values.MARKETPLACE);
 
   for (const key of ["name", "owner", values.DESCRIPTION]) {
-    const text = `marketplace.${key}`;
-
-    requireText(marketplace[key], text);
+    requireText(marketplace[key], `marketplace.${key}`);
   }
 
   if (marketplace.display_name !== undefined) {
-    requireText(marketplace.display_name, values.MARKETPLACE_DISPLAY_NAME);
+    requireText(marketplace.display_name, "marketplace.display_name");
   }
 
   if (!NAME.test(marketplace.name)) {
-    throw new Error(values.MARKETPLACE_NAME_MUST_USE_LOWERCASE_KEBAB_CASE);
+    throw new Error("marketplace.name must use lowercase kebab-case");
   }
 
   if (!Array.isArray(registry.plugins)) {
-    throw new TypeError(values.PLUGINS_MUST_BE_AN_ARRAY);
+    throw new TypeError("plugins must be an array");
   }
 
   for (const plugin of registry.plugins) {
@@ -66,7 +69,7 @@ function validateRegistryFields(registry: Registry) {
         values.DESCRIPTION,
         "harnesses",
         "category",
-        values.AUTHENTICATION,
+        "authentication",
         "soubi",
         "native",
         "author",
@@ -80,29 +83,21 @@ function validateRegistryFields(registry: Registry) {
     }
 
     if (!NAME.test(plugin.name)) {
-      const invalidNameMessage = `Invalid plugin name: ${plugin.name}`;
-
-      throw new Error(invalidNameMessage);
+      throw new Error(`Invalid plugin name: ${plugin.name}`);
     }
 
     if (names.has(plugin.name)) {
-      const duplicatePluginMessage = `Duplicate plugin: ${plugin.name}`;
-
-      throw new Error(duplicatePluginMessage);
+      throw new Error(`Duplicate plugin: ${plugin.name}`);
     }
 
     names.add(plugin.name);
 
     if (!VERSION.test(plugin.version)) {
-      const invalidVersionMessage = `Invalid version for ${plugin.name}: ${plugin.version}`;
-
-      throw new Error(invalidVersionMessage);
+      throw new Error(`Invalid version for ${plugin.name}: ${plugin.version}`);
     }
 
     if (plugin.authentication !== undefined && !["on-install", "on-use"].includes(plugin.authentication)) {
-      const invalidAuthenticationMessage = `${plugin.name}: authentication must be on-install or on-use`;
-
-      throw new Error(invalidAuthenticationMessage);
+      throw new Error(`${plugin.name}: authentication must be on-install or on-use`);
     }
 
     if (
@@ -110,16 +105,12 @@ function validateRegistryFields(registry: Registry) {
       plugin.harnesses.length === 0 ||
       new Set(plugin.harnesses).size !== plugin.harnesses.length
     ) {
-      const invalidHarnessesMessage = `${plugin.name}: harnesses must be a non-empty array without duplicates`;
-
-      throw new Error(invalidHarnessesMessage);
+      throw new Error(`${plugin.name}: harnesses must be a non-empty array without duplicates`);
     }
 
     for (const harness of plugin.harnesses) {
       if (!HARNESSES.has(harness)) {
-        const unsupportedHarnessMessage = `${plugin.name}: unsupported harness ${harness}`;
-
-        throw new Error(unsupportedHarnessMessage);
+        throw new Error(`${plugin.name}: unsupported harness ${harness}`);
       }
     }
 
@@ -135,10 +126,14 @@ function validateRegistryFields(registry: Registry) {
       continue;
     }
 
-    fields(plugin.soubi, ["mcpServers", "assets", values.HARNESSDEFAULTS], `${plugin.name}.soubi`);
+    fields(plugin.soubi, ["mcpServers", "assets", "harnessDefaults"], `${plugin.name}.soubi`);
   }
 }
 
+/**
+Reject unsupported registry fields and invalid marketplace or plugin metadata.
+@param registry - Parsed marketplace registry to validate.
+*/
 export function validateRegistry(registry: Registry) {
   fields(registry, [values.MARKETPLACE, "plugins"], "registry");
   validateRegistryFields(registry);

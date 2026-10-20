@@ -1,158 +1,42 @@
 import type { ESLint, JSSyntaxElement, Rule } from "eslint";
 
-const tokens = {
-  arrayExpression: "ArrayExpression",
-  objectExpression: "ObjectExpression",
-  tSAsExpression: "TSAsExpression",
-  tSSatisfiesExpression: "TSSatisfiesExpression",
-  variableDeclarator: "VariableDeclarator",
-  tSLiteralType: "TSLiteralType",
-  tSImportType: "TSImportType",
-  expressionStatement: "ExpressionStatement",
-  tSModuleDeclaration: "TSModuleDeclaration",
-  importDeclaration: "ImportDeclaration",
-  exportNamedDeclaration: "ExportNamedDeclaration",
-  exportAllDeclaration: "ExportAllDeclaration",
-  exportDefaultDeclaration: "ExportDefaultDeclaration",
-  declaration: "declaration",
-  variableDeclaration: "VariableDeclaration",
-  functionDeclaration: "FunctionDeclaration",
-  tSDeclareFunction: "TSDeclareFunction",
-  tSTypeAliasDeclaration: "TSTypeAliasDeclaration",
-  tSInterfaceDeclaration: "TSInterfaceDeclaration",
-};
-
+/**
+Read an AST field without assuming the input is an object.
+@param value - Unknown input to inspect.
+@param key - Field name to read when the input is an object.
+@returns The field value, or undefined when the input has no fields.
+*/
 function property(value: unknown, key: string): unknown {
   return typeof value === "object" && value !== null ? Reflect.get(value, key) : undefined;
 }
 
+/**
+Identify an AST node through its checked type field.
+@param value - Possible AST node to inspect.
+@returns The node type, or an empty string for other values.
+*/
 function typeOf(value: unknown): string {
   const type = property(value, "type");
 
   return typeof type === "string" ? type : "";
 }
 
-function isConstantInitializer(node: unknown): boolean {
-  const containers = new Set([
-    tokens.arrayExpression,
-    tokens.objectExpression,
-    "Property",
-    tokens.tSAsExpression,
-    tokens.tSSatisfiesExpression,
-  ]);
-
-  let current = node;
-  let parent = property(current, "parent");
-
-  while (containers.has(typeOf(parent))) {
-    current = parent;
-    parent = property(current, "parent");
-  }
-
-  return (
-    typeOf(parent) === tokens.variableDeclarator &&
-    property(parent, "init") === current &&
-    typeOf(property(parent, "id")) === "Identifier" &&
-    property(property(parent, "parent"), "kind") === "const"
-  );
-}
-
-function isStringSyntax(node: unknown): boolean {
-  const parent = property(node, "parent");
-  const type = typeOf(parent);
-
-  return (
-    type === tokens.tSLiteralType ||
-    type === tokens.tSImportType ||
-    (type === tokens.expressionStatement && typeof property(parent, "directive") === "string") ||
-    (type === tokens.tSModuleDeclaration && property(parent, "id") === node) ||
-    property(parent, "key") === node ||
-    (property(parent, "source") === node &&
-      [tokens.importDeclaration, tokens.exportNamedDeclaration, tokens.exportAllDeclaration].includes(type))
-  );
-}
-
-function stringValue(value: unknown): string {
-  return typeof value === "string" ? value : "";
-}
-
-function quasiText(quasi: unknown): string {
-  const value = property(quasi, "value");
-  const cooked = property(value, "cooked");
-
-  return typeof cooked === "string" ? cooked : stringValue(property(value, "raw"));
-}
-
-function templateText(node: unknown): string {
-  const quasis = property(node, "quasis");
-
-  return Array.isArray(quasis) ? quasis.map((quasi: unknown) => quasiText(quasi)).join("") : "";
-}
-
-const noMagicStrings: Rule.RuleModule = {
-  meta: {
-    type: "suggestion",
-    docs: { description: "Name string values with constants instead of embedding them in expressions." },
-    schema: [
-      {
-        type: "object",
-        properties: {
-          minLength: {
-            type: "integer",
-            minimum: 0,
-            description: "Report strings longer than this length; allow lengths up to and including it.",
-          },
-        },
-        additionalProperties: false,
-      },
-    ],
-    defaultOptions: [{ minLength: 10 }],
-    messages: { extract: "Extract this string into a named constant." },
-  },
-  create(context) {
-    const options: unknown = context.options[0];
-    const configured = property(options, "minLength");
-    const defaultMinimum = 10;
-    const minimum = typeof configured === "number" ? configured : defaultMinimum;
-
-    function inspect(node: JSSyntaxElement, value: string) {
-      if (value.length <= minimum || isConstantInitializer(node) || isStringSyntax(node)) {
-        return;
-      }
-
-      context.report({ node, messageId: "extract" });
-    }
-
-    return {
-      Literal(node) {
-        if (typeof node.value === "string") {
-          inspect(node, node.value);
-        }
-      },
-      TemplateLiteral(node) {
-        const text = templateText(node);
-
-        if (text.length > 0) {
-          inspect(node, text);
-        }
-      },
-      JSXText(node: JSSyntaxElement) {
-        const value = property(node, "value");
-
-        if (typeof value === "string" && value.trim().length > 0) {
-          inspect(node, value.trim());
-        }
-      },
-    };
-  },
-};
-
+/**
+Unwrap an exported declaration for placement analysis.
+@param statement - Statement that may wrap a declaration.
+@returns The enclosed declaration, or the original statement.
+*/
 function declarationOf(statement: unknown): unknown {
-  return typeOf(statement) === tokens.exportNamedDeclaration || typeOf(statement) === tokens.exportDefaultDeclaration
-    ? property(statement, tokens.declaration)
+  return typeOf(statement) === "ExportNamedDeclaration" || typeOf(statement) === "ExportDefaultDeclaration"
+    ? property(statement, "declaration")
     : statement;
 }
 
+/**
+Recognize declarations that can share the beginning of a scope.
+@param statement - Statement whose declaration category is needed.
+@returns Whether the statement belongs to the declaration prefix.
+*/
 function isRuntimeDeclarationPrefix(statement: unknown): boolean {
   const declaration = declarationOf(statement);
   const declarationType = typeOf(declaration);
@@ -160,23 +44,28 @@ function isRuntimeDeclarationPrefix(statement: unknown): boolean {
   return (
     property(declaration, "declare") === true ||
     [
-      tokens.variableDeclaration,
-      tokens.functionDeclaration,
-      tokens.tSDeclareFunction,
-      tokens.tSTypeAliasDeclaration,
-      tokens.tSInterfaceDeclaration,
+      "VariableDeclaration",
+      "FunctionDeclaration",
+      "TSDeclareFunction",
+      "TSTypeAliasDeclaration",
+      "TSInterfaceDeclaration",
     ].includes(declarationType)
   );
 }
 
+/**
+Permit imports, directives, and declarations before executable statements.
+@param statement - Statement to classify within its scope.
+@returns Whether subsequent variables may remain in the declaration prefix.
+*/
 function isDeclarationPrefix(statement: unknown): boolean {
   const type = typeOf(statement);
 
   return (
-    type === tokens.importDeclaration ||
-    type === tokens.exportAllDeclaration ||
-    (type === tokens.exportNamedDeclaration && !property(statement, tokens.declaration)) ||
-    (type === tokens.expressionStatement && typeof property(statement, "directive") === "string") ||
+    type === "ImportDeclaration" ||
+    type === "ExportAllDeclaration" ||
+    (type === "ExportNamedDeclaration" && !property(statement, "declaration")) ||
+    (type === "ExpressionStatement" && typeof property(statement, "directive") === "string") ||
     isRuntimeDeclarationPrefix(statement)
   );
 }
@@ -198,7 +87,7 @@ const constOnTop: Rule.RuleModule = {
 
         if (
           hasExecutableStatement &&
-          typeOf(declaration) === tokens.variableDeclaration &&
+          typeOf(declaration) === "VariableDeclaration" &&
           (kind === "const" || kind === "let")
         ) {
           const location = property(declaration, "loc");
@@ -229,6 +118,6 @@ const constOnTop: Rule.RuleModule = {
   },
 };
 
-const plugin: ESLint.Plugin = { rules: { "no-magic-strings": noMagicStrings, "const-on-top": constOnTop } };
+const plugin: ESLint.Plugin = { rules: { "const-on-top": constOnTop } };
 
 export default plugin;

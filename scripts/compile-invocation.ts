@@ -1,18 +1,26 @@
-import * as values from "./compile-plugin-values.ts";
 import { parseSkillFrontmatter, type validateSkillFrontmatter } from "./file-validation.ts";
 import type { HarnessOutput } from "soubi/compiler";
 import { jsonRecord } from "./validation.ts";
 
+/**
+Require a YAML mapping before applying a generated invocation policy.
+@param document - Parsed YAML value to validate.
+@param configPath - Configuration path to include in an error message.
+@returns The validated mapping with its existing fields preserved.
+*/
 function parsePolicyMapping(document: unknown, configPath: string): Record<string, unknown> {
   if (!document || typeof document !== "object" || Array.isArray(document)) {
-    const invalidConfigurationMessage = `${configPath}: configuration must be a YAML mapping`;
-
-    throw new Error(invalidConfigurationMessage);
+    throw new Error(`${configPath}: configuration must be a YAML mapping`);
   }
 
   return jsonRecord.parse(document);
 }
 
+/**
+Set the Codex policy that prevents implicit invocation of an explicit skill.
+@param files - Mutable compiler file map to update with the skill configuration.
+@param name - Skill name used to locate its Codex configuration.
+*/
 function applyExplicitCodexPolicy(files: Map<string, HarnessOutput["files"][number]>, name: string) {
   const configPath = `skills/${name}/agents/openai.yaml`;
   const existing = files.get(configPath);
@@ -23,9 +31,7 @@ function applyExplicitCodexPolicy(files: Map<string, HarnessOutput["files"][numb
   const policy: unknown = Reflect.get(document, "policy");
 
   if (policy !== undefined && (!policy || typeof policy !== "object" || Array.isArray(policy))) {
-    const invalidPolicyMessage = `${configPath}: policy must be a YAML mapping`;
-
-    throw new Error(invalidPolicyMessage);
+    throw new Error(`${configPath}: policy must be a YAML mapping`);
   }
 
   Reflect.set(document, "policy", {
@@ -39,16 +45,28 @@ function applyExplicitCodexPolicy(files: Map<string, HarnessOutput["files"][numb
   });
 }
 
+/**
+Require a compiled skill file before restoring its source metadata.
+@param skill - Compiled skill file, if the compiler produced it.
+@param harness - Harness name to include in an error message.
+@param name - Skill name to include in an error message.
+@returns The compiled skill file.
+*/
 function requireSkill(skill: HarnessOutput["files"][number] | undefined, harness: string, name: string) {
   if (!skill) {
-    const missingSkillMessage = `${harness}: missing skill ${name}`;
-
-    throw new Error(missingSkillMessage);
+    throw new Error(`${harness}: missing skill ${name}`);
   }
 
   return skill;
 }
 
+/**
+Restore validated skill metadata and apply harness-specific invocation policies.
+@param output - Compiled harness output containing skill files.
+@param harness - Target harness whose metadata fields must be applied.
+@param skills - Validated source metadata indexed by skill name.
+@returns The compiled file iterator after metadata and policy updates.
+*/
 export function applyInvocationPolicies(
   output: HarnessOutput,
   harness: "claude" | "codex",
@@ -79,12 +97,12 @@ export function applyInvocationPolicies(
     }
 
     if (harness === "codex") {
-      Reflect.deleteProperty(skillDocument, values.ALLOWED_TOOLS);
-      Reflect.deleteProperty(skillDocument, values.USER_INVOCABLE);
+      delete skillDocument["allowed-tools"];
+      delete skillDocument["user-invocable"];
     }
 
     if (isExplicit && harness === "claude") {
-      skillDocument[values.DISABLE_MODEL_INVOCATION] = true;
+      skillDocument["disable-model-invocation"] = true;
     }
 
     files.set(skillPath, {
