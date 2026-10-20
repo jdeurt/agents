@@ -1213,7 +1213,24 @@ consume(item!.value);
 
 ### 4D. Check unknown values before use
 
-Keep unknown input unknown until a runtime check proves its shape.
+Validate runtime data at trust and I/O boundaries before code relies on its shape.
+These boundaries include network responses, database results, files and storage, and user input.
+Pay particular attention to raw database queries and JSON columns.
+A database client or generic query return type does not, by itself, establish the returned runtime shape.
+
+Treat data as unknown when a trustworthy runtime guarantee has not established the properties the consuming code needs.
+This applies even when a TypeScript annotation or cast claims a specific type.
+The boundary is determined by the data's guarantees, not by whether its declared type uses the `unknown` keyword.
+
+Use Zod Mini schemas or checked control flow to establish the required guarantees.
+Decode serialized input before validating its runtime shape.
+JSON decoding alone does not validate an application-specific schema.
+
+A trustworthy runtime guarantee or validation already performed can establish the required shape at an I/O boundary.
+Do not repeat validation solely because data passed through I/O.
+Validated values can flow through internal functions without redundant schema checks while their guarantees remain valid.
+Validate again when another trust boundary or an unchecked mutation invalidates those guarantees.
+
 Avoid unchecked assertions that narrow a type.
 Avoid chained type assertions.
 Avoid unsafe calls.
@@ -1221,12 +1238,12 @@ Avoid unsafe member access.
 Avoid unsafe returns.
 
 Avoid misleading broad function types.
-Type annotations alone do not check untrusted runtime input.
+TypeScript annotations, casts, and generic return types do not validate external data.
 
 **Why:**
 
 External input can violate every assumption in a type annotation.
-Runtime checks establish the facts needed for safe use.
+Schemas and checked control flow establish the facts needed for safe use.
 Unchecked or chained assertions can hide missing evidence without changing the input.
 Unsafe calls, member access, and returns spread that uncertainty to other operations.
 Broad function types can conceal incompatible arguments or results.
