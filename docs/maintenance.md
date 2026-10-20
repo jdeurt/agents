@@ -100,12 +100,16 @@ The inherited `unicorn/consistent-function-scoping` error flags functions that c
 
 The shared policy adds React Doctor's framework-independent flat `recommended` preset and React Hooks' `recommended-latest` to React files. React Doctor's `all` preset includes rules for unrelated frameworks, so it is not enabled across every project. ESLint applies enabled rules' declared automatic fixes; suggestions remain manual. After fixing findings, review the diff and run formatting, linting, type checks, and the project's applicable tests and build.
 
-### jscpd agent integration
-
-Engineering imports all five upstream [jscpd agent skills](https://jscpd.dev/guides/agents) from `kucherenko/jscpd` and authors a `code-review` skill for reviewing each completed logical change after a distinct feature or bug fix. The plugin does not register the optional MCP server: the CLI covers this review and provides dead-code analysis, which the MCP server does not expose. The skill uses `npx -y jscpd@5` and honors the project's jscpd config when one exists. Without a config, it uses default commands for exact, renamed, gap, structural, and semantic clone passes, including JavaScript/TypeScript cross-format detection, then a separate `--dead-code` run. The npm launcher needs Node.js 18 or newer and downloads jscpd's platform binary on first use; it does not depend on Bun. The default semantic pass needs a one-time `npx -y jscpd@5 --semantic-download` for jscpd's 548 MB local embedding model. Without project file or format filters, default token matching covers every format jscpd supports. Structural, semantic, and dead-code detection each cover their documented subset of languages. The default dead-code mode includes every category and confidence level; Rust requires supplied compiler diagnostics. The agent checks findings related to its logical change before refactoring or deleting code.
+### Imported sources
 
 Cloudflare is imported as a complete native plugin from [cloudflare/skills](https://github.com/cloudflare/skills), following its default branch. Its Apache-2.0 license and remote MCP configuration are preserved. This trusted import allows all scripts, hooks, and local MCP configurations; upstream install and build scripts are still never run during import.
 
 shadcn is imported from [shadcn-ui/ui](https://github.com/shadcn-ui/ui), with its license alongside the skill. Compiled Codex skills omit Claude's `allowed-tools` and `user-invocable` fields; Claude packages retain them.
 
 Writing Clearly and Concisely is the portable skill snapshot supplied on the user's Desktop, including its bundled 1918 Elements of Style reference. UI/UX Design is a locally maintained skill snapshot. Client-specific metadata and icons are excluded from authored plugin sources; the publishing pipeline owns harness-specific behavior.
+
+Writing imports [ASD-STE100](https://github.com/danyuchn/asd-ste100-skill) from the upstream default branch. Keep its description and activation conditions unchanged. The build moves an imported top-level `version` into `metadata.version` for portable skill metadata. Different values in those two fields fail import validation.
+
+The import includes its MIT license, examples, references, and `scripts/ste-lint.py`. This Python script uses only the standard library. Run it for the structural checks described in the skill.
+
+Review meaning and technical terms separately. The skill does not include the official ASD word dictionary or certify compliance with that dictionary.

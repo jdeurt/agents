@@ -6,7 +6,14 @@ Use each language’s native syntax and standard library. Examples use TypeScrip
 
 ### Lay out lists consistently at each depth
 
-For arguments, parameters, object properties, collection items, and similar lists, choose either one line for the whole list or one item per line at that nesting depth. Do not pack several siblings onto one line and continue other siblings on another line. Each nested list chooses independently.
+Apply this layout to arguments, parameters, properties, collection items, and similar lists.
+At each nesting depth, use one of these layouts:
+
+- Put the complete list on one line.
+- Put each item on a separate line.
+
+Do not put several siblings on one line and other siblings on another line.
+Choose the layout separately for each nested list.
 
 **Good:**
 
@@ -51,7 +58,17 @@ const mixedOptions = {
 
 ### Use a predictable visual grammar
 
-Use ordinary spaces, aligned nesting, visible operator boundaries, one statement per line, clear comments, a final newline, and no trailing or irregular whitespace. Aim for lines within 120 columns; allow longer lines where breaking them would reduce clarity.
+Use ordinary spaces.
+Align nested code.
+Make operator boundaries visible.
+Put one statement on each line.
+Write clear comments.
+
+End each file with a newline.
+Do not leave trailing whitespace.
+Do not use irregular whitespace.
+Aim for lines within 120 columns.
+Allow longer lines when a line break reduces clarity.
 
 **Good:**
 
@@ -72,7 +89,21 @@ const total=subtotal+tax;return total;
 
 ### Separate structural units
 
-Put a blank line after the final import before any non-import statement; consecutive imports may stay together. Keep consecutive declarations of the same kind together. Separate constant and mutable declaration groups with a blank line, and put a blank line after the final declaration before executable code. Put blank lines between class methods and around class declarations; separate control-flow units and final returns so structure is visible. Keep overload signatures adjacent to their implementation, without blank lines within that group. Adapt declaration spacing to the language.
+Consecutive imports may remain together.
+Put a blank line after the final import before any other statement.
+
+Keep consecutive declarations of the same kind together.
+Put a blank line between constant and mutable declaration groups.
+Put a blank line after the final declaration before executable code.
+
+Put blank lines between class methods.
+Put blank lines around class declarations.
+Separate control-flow units with blank lines.
+Separate final returns with blank lines.
+
+Keep overload signatures adjacent to their implementation.
+Do not put blank lines within an overload group.
+Adapt declaration spacing to the language.
 
 **Good:**
 
@@ -117,11 +148,43 @@ class Gauge {}
 
 ### Keep units small and expressions readable
 
-Split long modules, deeply nested calls, complex functions, and complex protected exception regions into named responsibilities. Name complicated iterable expressions and unpack only the fields you need. Preserve useful behavior rather than splitting solely to satisfy a counter. Keep files within 350 lines, including comments and blank lines. Keep function complexity at or below 20, try-block complexity at or below 1, and nested-call depth at or below 3.
+Split long modules into units with named responsibilities.
+Split complex functions into units with named responsibilities.
+Split complex protected exception regions into units with named responsibilities.
+Split deeply nested calls into named intermediate values.
+Name complex expressions that produce iterables.
+Unpack only the fields that you need.
 
-Complexity measures branching: start at 1 for a straight-line body, then add 1 for each decision point, such as a conditional branch, loop, non-default case, catch, default-value choice, or short-circuit condition check. This counts independent paths, not every possible combination of execution paths. Apply the same count to the protected body of a try block; complexity 1 keeps that body free of branching. Count nested functions separately from the body that contains them.
+Preserve useful behavior when you split code.
+Do not split code only to satisfy a count.
+Use these limits:
 
-For nested-call depth, count the outermost call as 1 and add 1 for each call nested inside an argument: `publish(normalize(read()))` has depth 3. Split deeper expressions into named intermediate values.
+- Keep each file within 350 lines, including comments and blank lines.
+- Keep function complexity at or below 20.
+- Keep try-block complexity at or below 1.
+- Keep nested-call depth at or below 3.
+
+Complexity measures branching.
+A straight-line body has complexity 1.
+Add 1 for each decision point.
+Count these constructs as decision points:
+
+- Count each conditional branch.
+- Count each loop.
+- Count each non-default case.
+- Count each catch.
+- Count each default-value choice.
+- Count each short-circuit condition check.
+
+Count independent paths, not every possible combination of execution paths.
+Apply the same count to the protected body of a try block.
+A try block with complexity 1 has no decision points in its protected body.
+Count nested functions separately from their enclosing body.
+
+Count the outermost call at depth 1.
+Add 1 for each call nested inside an argument.
+The expression `publish(normalize(read()))` has depth 3.
+Split deeper expressions into named intermediate values.
 
 **Good:**
 
@@ -142,7 +205,12 @@ publish(serialize(normalize(loadReport())));
 
 ### Name values for their role
 
-Use consistent spelling and filename conventions. Boolean names should read as predicates; action names should identify callable operations. Give exported functions and classes useful names. Name caught exceptions consistently.
+Use consistent spelling.
+Use consistent filename conventions.
+Boolean names should read as predicates.
+Use action names for callable operations.
+Give exported functions and classes useful names.
+Name caught exceptions consistently.
 
 **Good:**
 
@@ -168,7 +236,15 @@ function thing() {
 
 ### Name meaningful numbers and strings
 
-Give domain numbers, paths, messages, and other meaningful string values stable names near their owner. The values 0, 1, and 2 may remain inline. Strings of up to 10 characters may remain inline; give longer strings meaningful names. Named static literal data is allowed. Use literal text for property keys, module sources, literal types, and language directives. Use the language’s convention for named constants even when it does not provide immutable bindings.
+Give meaningful numbers and strings stable names near their owner.
+Use names for domain numbers, paths, messages, and similar values.
+The values 0, 1, and 2 may remain inline.
+Strings of up to 10 characters may remain inline.
+Give longer strings meaningful names.
+Named static literal data may contain inline values.
+
+Use literal text for property keys, module sources, literal types, and language directives.
+Use the language's convention for named constants, even without immutable bindings.
 
 **Good:**
 
@@ -190,7 +266,16 @@ notify("Report saved");
 
 ### Keep declarations in the right scope
 
-Keep constant and mutable variable declarations in the declaration prefix of their scope, before executable statements. Separate the final declaration in a group from the following executable statement with a blank line. Imports, types, functions, and other variable declarations may precede them; loop-header declarations are allowed. Use the smallest owning scope and move independent functions outward. Preserve evaluation order; introduce a smaller block after an early exit when needed. Keep a closure nested when it needs surrounding local state; move helpers outward when they are independent.
+Keep constant and mutable declarations before executable statements in their scope.
+Put a blank line between the final declaration in a group and the next executable statement.
+Imports, types, functions, and other variable declarations may precede these declarations.
+Loop-header declarations may remain in the loop header.
+
+Use the smallest scope that owns a value.
+Move independent functions to an outer scope.
+Preserve evaluation order.
+Introduce a smaller block after an early exit when necessary.
+Keep a closure nested when it needs surrounding local state.
 
 **Good:**
 
@@ -220,7 +305,21 @@ function publishReport() {
 
 ### Use deliberate, unambiguous bindings
 
-Declare and define names before use, avoid shadowing and redeclarations, initialize before reading, and preserve imported, constant, exception, class, function, and reserved bindings. Prefer immutable local bindings where values do not change.
+Declare names before use.
+Define names before use.
+Initialize values before you read them.
+Do not shadow existing names.
+Do not redeclare existing names.
+Prefer immutable local bindings when their values do not change.
+
+Preserve these bindings:
+
+- Preserve imported bindings.
+- Preserve constant bindings.
+- Preserve exception bindings.
+- Preserve class bindings.
+- Preserve function bindings.
+- Preserve reserved bindings.
 
 **Good:**
 
@@ -240,7 +339,20 @@ const source = loadSource();
 
 ### Remove dead, empty, and ineffective work
 
-Remove unused declarations, private members, labels, expressions, assignments, empty files, empty patterns, and accidental empty bodies. Use all lazy results or consume them deliberately. Keep intentional no-op behavior explicit and justified.
+Remove these unused elements:
+
+- Remove unused declarations.
+- Remove unused private members.
+- Remove unused labels.
+- Remove unused expressions.
+- Remove unused assignments.
+
+Remove empty files.
+Remove empty patterns.
+Remove accidental empty bodies.
+Use the results of lazy operations, or consume them deliberately.
+Make intentional operations that do nothing explicit.
+Explain why those operations are necessary.
 
 **Good:**
 
@@ -260,7 +372,18 @@ function double(value: number) {
 
 ### Avoid duplicate declarations and alternatives
 
-Each parameter, object key, enum value, class member, branch, logical operand, switch case, and set item should have one unambiguous meaning. Consolidate identical adjacent branches and repeated operations.
+Give each parameter one unambiguous meaning.
+Give each object key one unambiguous meaning.
+Give each enum value one unambiguous meaning.
+Give each class member one unambiguous meaning.
+
+Give each branch one unambiguous meaning.
+Give each logical operand one unambiguous meaning.
+Give each switch case one unambiguous meaning.
+Give each set item one unambiguous meaning.
+
+Combine identical adjacent branches.
+Combine repeated operations when possible.
 
 **Good:**
 
@@ -278,7 +401,11 @@ const options = { isReady: true, isReady: false };
 
 ### Factor shared work without unnecessary abstraction
 
-Move code shared by branches outside the branch, combine compatible consecutive operations, and remove wrapper functions that repeat at every call. Prefer a meaningful helper over repeated boilerplate; remove parameters whose values never vary.
+Move code shared by all branches outside those branches.
+Combine compatible consecutive operations.
+Remove wrappers that repeat at every call.
+Use a meaningful helper for repeated boilerplate.
+Remove parameters whose values never vary.
 
 **Good:**
 
@@ -304,7 +431,19 @@ if (isRemote) {
 
 ### Prefer the simplest operation that states intent
 
-Use supported native operations and meaningful defaults rather than manual wrappers, coercions, redundant fallback values, recursive boilerplate, or obsolete APIs. Specify important optional behavior explicitly. Preserve evaluation order and side effects when simplifying.
+Use supported native operations.
+Use meaningful defaults.
+Avoid these unnecessary operations:
+
+- Avoid manual wrappers.
+- Avoid implicit type conversions.
+- Avoid redundant fallback values.
+- Avoid recursive boilerplate.
+- Avoid obsolete APIs.
+
+Specify important optional behavior explicitly.
+Preserve evaluation order when you simplify code.
+Preserve side effects when you simplify code.
 
 **Good:**
 
@@ -325,7 +464,16 @@ const joined = names.reduce(
 
 ### Use explicit, supported dependencies
 
-Use the host language’s supported module/import conventions, avoid duplicate or unused imports and redundant reexports, and keep package usage compatible with installed versions. Prefer maintained APIs and the smallest useful imports over deprecated methods or costly entire-library imports.
+Use the language's supported module conventions.
+Use the language's supported import conventions.
+Remove duplicate imports.
+Remove unused imports.
+Remove redundant reexports.
+Keep package usage compatible with the installed version.
+
+Prefer maintained APIs to deprecated APIs.
+Import only the parts that you need.
+Avoid costly imports of an entire library.
 
 **Good:**
 
@@ -343,7 +491,8 @@ import { saveReport as saveAgain } from "./storage.ts";
 
 ### Make maintenance notes actionable
 
-Give TODO comments a specific task and a clear condition for completing or removing them.
+Give each TODO comment a specific task.
+Give each TODO comment a clear condition for completion or removal.
 
 **Good:**
 
@@ -363,7 +512,20 @@ const adapter = createCompatibilityAdapter();
 
 ### Make conditions direct and intentional
 
-Use explicit comparisons when required, simple positive conditions first, direct Boolean returns, and the narrowest conditional expression. Avoid nested ternaries, assignment-as-condition, negation ambiguities, duplicate comparisons, and expressions whose result is constant. Logical/nullish operators must preserve false, zero, and empty values according to the intended contract.
+Use explicit comparisons when necessary.
+Put simple positive conditions first.
+Return Boolean results directly.
+Use the narrowest conditional expression.
+
+Avoid these ambiguous or redundant expressions:
+
+- Avoid nested ternaries.
+- Avoid assignments in conditions.
+- Avoid ambiguous negation.
+- Avoid duplicate comparisons.
+- Avoid expressions with a constant result.
+
+Make logical and nullish operators preserve false, zero, and empty values according to the intended contract.
 
 **Good:**
 
@@ -383,7 +545,19 @@ const isAvailable = count > 0 ? (hasPermission ? true : false) : false;
 
 ### Make control flow explicit and reachable
 
-Use clear block boundaries, early returns or continues, and an appropriate multiway branch. Avoid unintended fallthrough, unreachable code and loops, confusing nested breaks, and a lone nested conditional. Keep the loop condition in the loop header when that makes its exit evident.
+Make block boundaries clear.
+Use early returns or continues where appropriate.
+Use an appropriate construct for branches with multiple alternatives.
+
+Avoid these control-flow errors:
+
+- Avoid unintended fallthrough.
+- Avoid unreachable code.
+- Avoid unreachable loops.
+- Avoid confusing nested breaks.
+- Avoid a lone nested conditional.
+
+Put the loop condition in the loop header when this makes the exit clear.
 
 **Good:**
 
@@ -414,7 +588,12 @@ function publishReport() {
 
 ### Iterate values directly
 
-Use direct iteration over values or the exact indices/entries needed. Name complicated iterable inputs, avoid duplicate passes, and never mutate the collection being traversed. Use native iteration or comprehension syntax.
+Iterate values directly.
+Use only the indices or entries that you need.
+Name complex expressions that produce iterables.
+Avoid duplicate passes through a collection.
+Do not mutate a collection during iteration.
+Use native iteration or comprehension syntax.
 
 **Good:**
 
@@ -434,7 +613,14 @@ for (const item of items) {
 
 ### Make state changes local and intentional
 
-Prefer nonmutating collection operations and preserve caller-owned inputs. Avoid shared mutable defaults, reference-filled arrays, hidden global writes, and mutation during calculation. Compute a fresh next state when the ownership contract requires it.
+Prefer collection operations that preserve their input.
+Preserve inputs that belong to the caller.
+Avoid shared mutable defaults.
+Avoid arrays whose elements share the same mutable reference.
+Avoid hidden writes to global state.
+Avoid mutation during calculations.
+
+Compute a new next state when the ownership contract requires it.
 
 **Good:**
 
@@ -454,7 +640,14 @@ function orderItems(items: Item[]) {
 
 ### Keep calculation separate from effects
 
-Keep reusable modules free of top-level effects, calculations pure, and updates out of render/evaluation paths. Trigger effects through explicit operations with dependencies and ownership made visible; prevent repeated state/effect feedback loops. Apply the same separation to imports and computed properties.
+Keep reusable modules free of top-level effects.
+Keep calculations pure.
+Keep updates outside render and evaluation paths.
+Trigger effects through explicit operations.
+Make the dependencies and ownership of those operations visible.
+Prevent repeated feedback loops between state and effects.
+
+Apply the same separation to imports and computed properties.
 
 **Good:**
 
@@ -479,7 +672,16 @@ export function calculateTotal(items: Item[]) {
 
 ### Keep state transitions consistent
 
-Use one source of truth, derive values from current inputs, make updates atomic, and prevent stale reads, feedback loops, in-place shared mutation, and unnecessary mirrored state. Use stable identifiers instead of position or randomness when identity must survive reordering.
+Use one source of truth.
+Derive values from current inputs.
+Make updates atomic.
+Avoid stale reads.
+Avoid feedback loops.
+
+Avoid mutation of shared state in place.
+Avoid unnecessary state that mirrors other state.
+Use stable identifiers when identity must survive reordering.
+Do not use positions or random values for those identifiers.
 
 **Good:**
 
@@ -500,7 +702,13 @@ function toggle(state: State): State {
 
 ### Make repeated evaluation deterministic
 
-Keep clocks, randomness, environment reads, allocation, and external effects outside repeatable calculations unless passed as explicit inputs. Make server/client or repeated render results agree where identity and content must remain stable. Seed deliberate randomness and use stable identifiers.
+Keep clocks, randomness, and environment reads outside repeatable calculations unless you pass them as explicit inputs.
+Keep allocation and external effects outside repeatable calculations unless you pass them as explicit inputs.
+
+Make repeated results agree when identity and content must remain stable.
+Make server and client results agree under the same condition.
+Seed deliberate randomness.
+Use stable identifiers.
 
 **Good:**
 
@@ -522,7 +730,27 @@ function makeView() {
 
 ### Respect API contracts and supported combinations
 
-Match argument counts, callback signatures, value kinds, return contracts, initialization order, units, ranges, dimensions, compatible options, and required inputs. Use runtime type checks that work across supported execution contexts rather than assuming constructor identity proves the value’s kind. An iteration API may pass extra callback arguments: use an adapter when forwarding a function would give those arguments unintended meanings. Reject contradictory or ignored configuration. Consult the API documentation for the runtime and library in use.
+Match these parts of the API contract:
+
+- Match argument counts.
+- Match callback signatures.
+- Match value kinds.
+- Match return contracts.
+- Match initialization order.
+- Match units.
+- Match ranges.
+- Match dimensions.
+- Match compatible options.
+- Supply required inputs.
+
+Use runtime type checks that work across supported execution contexts.
+Do not assume that constructor identity proves the value's kind.
+An iteration API may pass extra arguments to its callback.
+Use an adapter when those arguments give a forwarded function unintended behavior.
+
+Reject contradictory configuration.
+Reject options that the API ignores.
+Consult the API documentation for the runtime and library in use.
 
 **Good:**
 
@@ -542,9 +770,20 @@ function resize(width: number, height: number) {
 const numbers = textValues.map(parseInt);
 ```
 
-### Use and return the intended value
+### Preserve the intended result
 
-Return a value on every required path; use getters, setters, constructors, callbacks, and lazy operations according to their return contracts. Do not mistake a mutator result, an uncalled function, or a discarded computation for the intended value.
+Return a value on every path that requires one.
+Follow the return contracts for these constructs:
+
+- Follow getter contracts.
+- Follow setter contracts.
+- Follow constructor contracts.
+- Follow callback contracts.
+- Follow lazy-operation contracts.
+
+Do not confuse a mutator's result with the intended value.
+Do not confuse an uncalled function with the intended value.
+Do not confuse a discarded calculation with the intended value.
 
 **Good:**
 
@@ -566,7 +805,15 @@ const readyItems = items.filter((item) => {
 
 ### Check absence before access
 
-Guard optional results, collection lookups, bounds, and nullable values before dereferencing or arithmetic. Avoid assertions that pretend absence cannot occur, redundant fallbacks, and unsafe optional access. Use the language’s native absence convention.
+Check that optional results exist before use.
+Check collection lookups before access.
+Check bounds before access.
+Check nullable values before access or arithmetic.
+
+Do not assert that an absent value must exist.
+Remove redundant fallbacks.
+Avoid unsafe optional access.
+Use the language's native absence convention.
 
 **Good:**
 
@@ -590,9 +837,17 @@ const item = items.find(matchesRequest);
 consume(item!.value);
 ```
 
-### Validate unknown values instead of bypassing types
+### Check unknown values before use
 
-Keep unknown input unknown until a runtime check proves its shape. Avoid unchecked narrowing, chained assertions, unsafe calls/member access/returns, and misleading broad function types. Type annotations alone do not validate untrusted runtime input.
+Keep unknown input unknown until a runtime check proves its shape.
+Avoid unchecked assertions that narrow a type.
+Avoid chained type assertions.
+Avoid unsafe calls.
+Avoid unsafe member access.
+Avoid unsafe returns.
+
+Avoid misleading broad function types.
+Type annotations alone do not check untrusted runtime input.
 
 **Good:**
 
@@ -616,7 +871,22 @@ function readName(value: unknown): string {
 
 ### Keep type contracts precise and economical
 
-Use simple consistent type declarations, coherent overloads, compatible getter/setter contracts, useful generic constraints, and nonredundant unions. Avoid empty or unsafe types, duplicate alternatives, needless annotations or assertions, and type parameters that express no relationship. Keep type-only dependencies separate where the language supports it.
+Use simple, consistent type declarations.
+Use coherent overloads.
+Keep getter and setter contracts compatible.
+Use generic constraints that express a useful relationship.
+Use unions without redundant alternatives.
+
+Avoid these unnecessary or unsafe type constructs:
+
+- Avoid empty types.
+- Avoid unsafe types.
+- Avoid duplicate alternatives.
+- Avoid unnecessary annotations.
+- Avoid unnecessary assertions.
+- Avoid type parameters that express no relationship.
+
+Keep type-only dependencies separate where the language supports this.
 
 **Good:**
 
@@ -638,7 +908,17 @@ function identity<T>(value: string): string {
 
 ### Give classes and objects a clear purpose
 
-Use classes for meaningful instances, not bags of static functions. Declare members, keep member order consistent, preserve parent-class accessor contracts, and avoid recursive accessors or useless constructors/overrides. Bind instance methods when passing them as callbacks. Prefer language-native fields and encapsulation.
+Use classes for meaningful instances.
+Do not use classes as containers for static functions only.
+Declare class members.
+Keep class members in a consistent order.
+Preserve parent-class accessor contracts.
+
+Avoid recursive accessors.
+Remove useless constructors.
+Remove useless overrides.
+Bind instance methods when you pass them as callbacks.
+Prefer native fields and encapsulation.
 
 **Good:**
 
@@ -662,9 +942,13 @@ class Counter {
 }
 ```
 
-### Initialize and tear down in lifecycle order
+### Preserve resource lifecycle order
 
-Use values only after construction or asynchronous initialization; run per-instance setup in its owning lifetime. Keep declared dependencies complete, preserve required parent initialization, and ensure cleanup outlives asynchronous work.
+Use values only after construction or asynchronous initialization.
+Run setup for each instance within that instance's lifetime.
+Keep declared dependencies complete.
+Preserve required parent initialization.
+Keep cleanup available until asynchronous work finishes.
 
 **Good:**
 
@@ -691,7 +975,16 @@ await client.initialize();
 
 ### Preserve useful exception information
 
-Raise meaningful exception objects with messages and appropriate types. Preserve the caught cause, avoid empty rethrows and swallowed failures, and aggregate related errors when useful. Never let a finally return or replacement exception silently erase the original failure.
+Raise meaningful exception objects.
+Give each exception a message.
+Use an appropriate exception type.
+Preserve the cause when you catch an exception.
+
+Remove catches that only rethrow the same exception.
+Do not hide failures.
+Combine related errors when useful.
+Do not let a return in a finally block replace the original failure.
+Do not let a replacement exception hide the original failure.
 
 **Good:**
 
@@ -717,7 +1010,14 @@ try {
 
 ### Honor asynchronous contracts
 
-Await only awaitable work, handle every asynchronous result, avoid asynchronous callbacks in synchronous APIs, and await returned work where exception handling requires it. Preserve rejection handling and avoid unnecessary promise wrappers. Use the language’s direct asynchronous syntax.
+Await only values that support await.
+Handle every asynchronous result.
+Do not use asynchronous callbacks in synchronous APIs.
+Await returned work when exception handling requires it.
+
+Preserve rejection handling.
+Remove unnecessary promise wrappers.
+Use the language's direct asynchronous syntax.
 
 **Good:**
 
@@ -741,7 +1041,15 @@ items.forEach(async (item) => {
 
 ### Schedule work with deliberate concurrency
 
-Run independent operations together when safe; avoid sequential waterfalls, premature waits, asynchronous reduction mistakes, reentry races, repeated completion calls, and stale updates after cancellation. Check success status before reading aggregate results.
+Run independent operations together when safe.
+Avoid sequential waits for independent operations when concurrency is safe.
+Do not await work before you need its result.
+Preserve asynchronous reduction accumulators.
+
+Prevent reentry races.
+Do not complete the same operation repeatedly.
+Prevent stale updates after cancellation.
+Check success status before you read aggregate results.
 
 **Good:**
 
@@ -762,7 +1070,20 @@ renderDashboard(users, projects);
 
 ### Pair acquisition with cleanup and ownership
 
-Close files, dispose owned resources, remove the exact listener registered, revoke temporary handles, cancel timers/debounces/animation, and propagate cancellation. Do not return a resource beyond its lifetime. Ensure cleanup also runs on failure and early exit.
+Pair each resource with cleanup:
+
+- Close files.
+- Dispose of resources that the current scope owns.
+- Remove the exact listener that you registered.
+- Revoke temporary handles.
+- Cancel timers.
+- Cancel debounced work.
+- Cancel animation.
+
+Propagate cancellation.
+Do not return a resource beyond its lifetime.
+Run cleanup after failure.
+Run cleanup after an early exit.
 
 **Good:**
 
@@ -787,7 +1108,14 @@ subscription.unsubscribe();
 
 ### Respect event lifetime and scheduling
 
-Use explicit event options and timer delays, avoid ineffective late event control, retain stable handler identity, and use a scheduler matching the intended timing. Do not block the event loop or exit before pending cleanup finishes.
+Specify event options explicitly.
+Specify timer delays explicitly.
+Do not control an event after its control period ends.
+Keep handler identity stable.
+Use a scheduler that matches the intended timing.
+
+Do not block the event loop.
+Do not exit before pending cleanup finishes.
 
 **Good:**
 
@@ -812,7 +1140,19 @@ target.removeEventListener(EVENT_TYPE, () => onEvent());
 
 ### Choose the collection operation matching the question
 
-Use find for one item, some/any for existence, membership containers for repeated membership, map for transformation, and grouping/set operations for their stated purpose. Avoid sorting to get an extremum, redundant materialization, unnecessary passes, and full iteration when only one result is needed.
+Use an operation that matches the question:
+
+- Use find for one item.
+- Use some or any for existence checks.
+- Use a membership container for repeated membership checks.
+- Use map to transform values.
+- Use grouping operations to form groups.
+- Use set operations for set relationships.
+
+Do not sort a collection only to find an extreme value.
+Avoid redundant collection materialization.
+Avoid unnecessary passes through a collection.
+Stop iteration when you have the one result that you need.
 
 **Good:**
 
@@ -830,7 +1170,16 @@ const hasReadyItem = items.filter(isReady).length > 0;
 
 ### Preserve collection shape and key meaning
 
-Use the correct map/set interface, consistent keys, dense elements, valid slice/splice bounds, numeric comparators, and explicit join separators. Avoid accidental mutation and operations that silently change item identity or collection type.
+Use the correct map or set interface.
+Use consistent keys.
+Keep collection elements dense.
+Use valid slice and splice bounds.
+Use numeric comparators for numeric ordering.
+Specify join separators explicitly.
+
+Avoid accidental mutation.
+Do not let an operation silently change item identity.
+Do not let an operation silently change the collection type.
 
 **Good:**
 
@@ -849,7 +1198,21 @@ const value = entries[requestedKey];
 
 ### Use direct, lossless string operations
 
-Use prefix/suffix, replacement-all, padding, repetition, slicing, and regex APIs according to the actual task. Make conversions explicit; avoid lossy object interpolation, incorrect template syntax, redundant trimming, unsafe replacement expansion, and pretending a code unit is a full character.
+Use string operations that match the task:
+
+- Use prefix and suffix checks for prefix and suffix questions.
+- Replace all matches when the task requires every match.
+- Use padding operations to pad strings.
+- Use repetition operations to repeat text.
+- Use slicing operations to extract substrings.
+- Use regular-expression APIs according to their contracts.
+
+Make conversions explicit.
+Avoid lossy object interpolation.
+Use correct template syntax.
+Remove redundant trimming.
+Avoid unsafe replacement expansion.
+Do not treat one code unit as a complete character.
 
 **Good:**
 
@@ -867,7 +1230,18 @@ const message = `${record}`;
 
 ### Treat text encoding and display width correctly
 
-Use valid regular expressions, explicit escapes for invisible characters, coherent encoding identifiers, code-point-aware operations, and streaming decoders for chunked text. Text length, terminal columns, bytes, and user-perceived characters are different units.
+Use valid regular expressions.
+Escape invisible characters explicitly.
+Use consistent encoding identifiers.
+Use operations that respect code points.
+Use a streaming decoder for chunked text.
+
+Keep these text measurements distinct:
+
+- Distinguish text length from other measurements.
+- Distinguish terminal columns from other measurements.
+- Distinguish bytes from other measurements.
+- Distinguish user-perceived characters from other measurements.
 
 **Good:**
 
@@ -885,7 +1259,23 @@ const chunkText = new TextDecoder().decode(chunk);
 
 ### Use mathematically valid and precise operations
 
-Avoid precision loss, invalid numeric operands, accidental bitwise operations, misleading numeric forms, impossible bounds, and unsafe integer assumptions. Use the language’s dedicated NaN and signed-zero checks when ordinary equality cannot distinguish the intended numeric values. Use direct math APIs, exact constants, explicit rounding precision, and valid ranges rather than approximate or obscure arithmetic.
+Avoid these numeric errors:
+
+- Avoid precision loss.
+- Avoid invalid numeric operands.
+- Avoid accidental bitwise operations.
+- Avoid misleading numeric forms.
+- Avoid impossible bounds.
+- Avoid unsafe assumptions about integers.
+
+Use dedicated checks for NaN when ordinary equality cannot express the intended check.
+Use dedicated checks for signed zero under the same condition.
+
+Use direct math APIs.
+Use exact constants.
+Specify rounding precision explicitly.
+Use valid ranges.
+Avoid approximate or obscure arithmetic.
 
 **Good:**
 
@@ -908,7 +1298,11 @@ if (value === NaN) {
 
 ### Preserve data through conversion
 
-Choose cloning and serialization operations that support the actual value types. Do not deep-clone through lossy JSON, leak bytes outside a buffer view, or stringify values without checking whether their representation is meaningful.
+Use cloning operations that support the actual value types.
+Use serialization operations that support the actual value types.
+Do not clone data through lossy JSON conversion.
+Do not expose bytes outside a buffer view.
+Check that a value has a meaningful string representation before you convert it.
 
 **Good:**
 
@@ -928,7 +1322,17 @@ const bytes = new Uint8Array(view.buffer);
 
 ### Keep executable input separate from data
 
-Avoid evaluation of input strings, parameterize SQL, escape values for their destination grammar, use secure transports and safe URL protocols, validate path containment, isolate untrusted embedded content, and keep secrets out of client or public storage. Validation must address the actual attack surface.
+Do not evaluate input strings as code.
+Pass SQL values as parameters.
+Escape values for the grammar of their destination.
+Use secure transports.
+Use safe URL protocols.
+
+Check path containment.
+Isolate untrusted embedded content.
+Keep secrets out of client storage.
+Keep secrets out of public storage.
+Make each check address the actual attack surface.
 
 **Good:**
 
@@ -951,7 +1355,16 @@ eval(input);
 
 ### Use protocol-aware networking APIs
 
-Build URLs and query parameters with their structured APIs, validate protocols and request/response options, check response status before consuming a body, and preserve required response/session commits. Avoid hand-parsing URLs and invalid cache or credential combinations.
+Construct URLs with structured APIs.
+Construct query parameters with structured APIs.
+Check request and response options.
+Check protocols.
+Check response status before you consume the body.
+Preserve required response and session commits.
+
+Do not parse URLs manually.
+Do not combine invalid cache options.
+Do not combine invalid credential options.
 
 **Good:**
 
@@ -980,7 +1393,15 @@ const data = await response.json();
 
 ### Avoid repeated allocation and needless asymptotic cost
 
-Hoist stable expensive work, use indexed lookup for repeated searches, avoid copying an accumulator at every iteration, and keep blocking work out of hot paths. Defer work until after guards and use batches, lazy iteration, or native operations when they preserve behavior.
+Move stable expensive work outside repeated operations.
+Use indexed lookup for repeated searches.
+Do not copy an accumulator during every iteration.
+Keep operations that block execution outside frequently executed paths.
+Defer work until after guards.
+
+Use batches when they preserve behavior.
+Use lazy iteration when it preserves behavior.
+Use native operations when they preserve behavior.
 
 **Good:**
 
@@ -1003,7 +1424,15 @@ for (const request of requests) {
 
 ### Give caches and identities correct lifetimes
 
-Reuse stable objects only when their inputs and ownership allow it. Cache keys must represent all relevant inputs; invalidation and subscription dependencies must reflect actual reads. Avoid stale snapshots, needless recreation, whole-store subscriptions, and derived state that duplicates its source of truth.
+Reuse stable objects only when their inputs and ownership allow it.
+Include all relevant inputs in cache keys.
+Make cache invalidation reflect actual reads.
+Make subscription dependencies reflect actual reads.
+
+Avoid stale snapshots.
+Avoid unnecessary recreation of values.
+Avoid subscriptions to an entire store when you need only part of it.
+Avoid derived state that duplicates its source of truth.
 
 **Good:**
 
@@ -1023,7 +1452,23 @@ const report = await cache.getOrInsertComputed(cacheKey, () => loadReport(accoun
 
 ### Make interfaces perceivable and operable
 
-Give controls, dialogs, links, media, and navigation useful names and valid semantics. Provide keyboard access, sensible focus order, labels, captions, and language; preserve paste and input-method behavior. Avoid hidden focusable controls, redundant or invalid accessibility attributes, intrusive announcements, and unexpected motion.
+Give controls, dialogs, links, media, and navigation useful names.
+Use valid semantics.
+Provide these interface features:
+
+- Provide keyboard access.
+- Provide a sensible focus order.
+- Provide labels.
+- Provide captions.
+- Specify the language.
+- Preserve paste behavior.
+- Preserve input-method behavior.
+
+Avoid hidden focusable controls.
+Avoid redundant accessibility attributes.
+Avoid invalid accessibility attributes.
+Avoid intrusive announcements.
+Avoid unexpected motion.
 
 **Good:**
 
@@ -1047,7 +1492,17 @@ const confirmAction = {
 
 ### Keep presentation constraints consistent and responsive
 
-Use valid content structure, compatible layout constraints, correctly bounded animation ranges, stable item identifiers, appropriate responsive media, and reduced-motion behavior. Update only necessary presentation properties; avoid expensive layout or global work for every frame. Apply these checks to graphical interfaces and visualizations.
+Use valid content structure.
+Use compatible layout constraints.
+Keep animation ranges within their bounds.
+Use stable item identifiers.
+Use appropriate responsive media.
+Respect reduced-motion preferences.
+
+Update only the presentation properties that need changes.
+Avoid expensive layout work during every frame.
+Avoid global work during every frame.
+Apply these checks to graphical interfaces and visualizations.
 
 **Good:**
 
@@ -1073,7 +1528,22 @@ const animation = {
 
 ### Keep graphics state, buffers, and frame work coherent
 
-Validate dimensions, item sizes, ranges, shader interfaces, and supported backend features. Initialize before use, propagate resize and dirty-state updates, provide required inputs, advance animations by elapsed time, batch repeated draws, and release owned GPU resources.
+Check these graphics contracts:
+
+- Check dimensions.
+- Check item sizes.
+- Check ranges.
+- Check shader interfaces.
+- Check support for backend features.
+
+Initialize graphics resources before use.
+Propagate resize changes.
+Propagate changes to dirty state.
+Supply required inputs.
+Advance animations by elapsed time.
+
+Batch repeated draws.
+Release graphics resources that the current scope owns.
 
 **Good:**
 

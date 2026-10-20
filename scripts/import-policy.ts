@@ -5,6 +5,7 @@ import { EXECUTABLE_BITS } from "./file-modes.ts";
 import type { ExternalImport } from "./types.ts";
 import { filesIn } from "./build-files.ts";
 import { jsonRecord } from "./validation.ts";
+import { parseSkillFrontmatter } from "./file-validation.ts";
 import path from "node:path";
 
 const RELATIVE_HIDDEN_MCP_PATH = "./.mcp.json";
@@ -27,6 +28,10 @@ const TO_UPDATE_THE_IMPORT_POLICY_INCLUDED_SCRIPTS =
   "to update the import policy. Included scripts still require the host's normal execution permissions.\n";
 const IMPORT_POLICY_MD = "IMPORT-POLICY.md";
 
+const IMPORTED_SKILL_VERSION_MUST_BE_A_STRING = "Imported skill version must be a string";
+const IMPORTED_SKILL_VERSION_CONFLICTS_WITH_METADATA = "Imported skill version conflicts with metadata.version";
+const versionMetadataSchema = z.record(z.string(), z.string());
+
 const CODE = /\.(?:[cm]?[jt]sx?|sh|bash|zsh|fish|py|rb|pl|php|ps1|bat|cmd|exe|dll|so|dylib|wasm)$/i;
 const extensions = z.record(z.string(), z.unknown());
 const surfaceSchema = z.looseObject({
@@ -34,6 +39,56 @@ const surfaceSchema = z.looseObject({
   hooks: z.optional(z.unknown()),
   mcpServers: z.optional(z.unknown()),
 });
+
+function normalizedVersionMetadata(metadata: unknown, version: string) {
+  const parsed = metadata === undefined ? {} : versionMetadataSchema.parse(metadata);
+  const existingVersion: unknown = Reflect.get(parsed, "version");
+
+  if (existingVersion !== undefined && existingVersion !== version) {
+    throw new Error(IMPORTED_SKILL_VERSION_CONFLICTS_WITH_METADATA);
+  }
+
+  return { ...parsed, version };
+}
+
+function serializedImportedVersion(source: string, document: object, offset: number, version: string) {
+  const original = jsonRecord.parse(document);
+  const metadata = normalizedVersionMetadata(original.metadata, version);
+  const normalized = { ...original, metadata };
+
+  Reflect.deleteProperty(normalized, "version");
+
+  return `---\n${Bun.YAML.stringify(normalized, undefined, 2).trimEnd()}\n---` + source.slice(offset);
+}
+
+function normalizeImportedVersion(source: string) {
+  const { document, header } = parseSkillFrontmatter(source);
+  const version: unknown = Reflect.get(document, "version");
+
+  if (!Object.hasOwn(document, "version")) {
+    return source;
+  }
+
+  if (typeof version !== "string") {
+    throw new TypeError(IMPORTED_SKILL_VERSION_MUST_BE_A_STRING);
+  }
+
+  return serializedImportedVersion(source, document, header.position.end.offset, version);
+}
+
+async function normalizeImportedVersions(directory: string, files: string[]) {
+  const skills = files.filter((file) => path.basename(file) === "SKILL.md");
+
+  for (const file of skills) {
+    const filename = path.join(directory, file);
+    const source = await readFile(filename, "utf8");
+    const normalized = normalizeImportedVersion(source);
+
+    if (normalized !== source) {
+      await writeFile(filename, normalized);
+    }
+  }
+}
 
 function omitLocalServer(servers: object, name: string, file: string, omitted: string[]) {
   const omission = `${file}: local MCP ${name}`;
@@ -200,6 +255,7 @@ export async function applyImportPolicy(directory: string, entry: ExternalImport
   }
 
   await restrictManifests(directory, entry, files, omitted);
+  await normalizeImportedVersions(directory, files);
 
   if (omitted.length === 0) {
     return;

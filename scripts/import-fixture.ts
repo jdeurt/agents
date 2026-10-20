@@ -36,6 +36,33 @@ const HTTPS_GITHUB_COM_CLOUDFLARE_SKILLS_GIT = "https://github.com/cloudflare/sk
 const HTTPS_GITHUB_COM_KUCHERENKO_JSCPD_GIT = "https://github.com/kucherenko/jscpd.git";
 const AGENTS_UPSTREAM_TEST = "agents-upstream-test-";
 
+const ASD_STE100_REPOSITORY = "https://github.com/danyuchn/asd-ste100-skill.git";
+const ASD_STE100_FIXTURE_SKILL =
+  '---\nname: asd-ste100\ndescription: Fixture STE100 skill.\nversion: "0.4.0"\n---\nImported STE100 instructions.\n';
+const ASD_STE100_LINTER_PATH = "scripts/ste-lint.py";
+const ASD_STE100_LINTER_SOURCE = "# Fixture structural linter.\n";
+
+function initializeFixtureRepository(upstream: string) {
+  git(upstream, ["init", "-b", "trunk"]);
+  git(upstream, ["config", "user.name", "Test"]);
+  git(upstream, ["config", "user.email", TEST_EXAMPLE_COM]);
+  git(upstream, ["add", "."]);
+  git(upstream, ["commit", "-m", "Fixture"]);
+}
+
+async function prepareAsdFixture(upstream: string) {
+  const gitRewrite = `url.file://${upstream}.insteadOf`;
+
+  await mkdir(path.join(upstream, "scripts"), { recursive: true });
+  await writeFile(path.join(upstream, "SKILL.md"), ASD_STE100_FIXTURE_SKILL);
+  await writeFile(path.join(upstream, ASD_STE100_LINTER_PATH), ASD_STE100_LINTER_SOURCE);
+  await writeFile(path.join(upstream, "LICENSE"), FIXTURE_LICENSE);
+  initializeFixtureRepository(upstream);
+  process.env.GIT_CONFIG_COUNT = "4";
+  process.env.GIT_CONFIG_KEY_3 = gitRewrite;
+  process.env.GIT_CONFIG_VALUE_3 = ASD_STE100_REPOSITORY;
+}
+
 function fixtureSkill(name: string) {
   const contents = `---\nname: ${name}\ndescription: Fixture skill for jscpd.\n---\n\nScan all supported formats.\n`;
 
@@ -80,11 +107,7 @@ async function prepareFixture(upstream: string) {
     );
   }
 
-  git(upstream, ["init", "-b", "trunk"]);
-  git(upstream, ["config", "user.name", "Test"]);
-  git(upstream, ["config", "user.email", TEST_EXAMPLE_COM]);
-  git(upstream, ["add", "."]);
-  git(upstream, ["commit", "-m", "Fixture"]);
+  initializeFixtureRepository(upstream);
   process.env.GIT_CONFIG_COUNT = "3";
   process.env.GIT_CONFIG_KEY_0 = gitRewrite;
   process.env.GIT_CONFIG_VALUE_0 = HTTPS_GITHUB_COM_SHADCN_UI_UI_GIT;
@@ -107,6 +130,7 @@ function restoreEnvironment(keys: string[], previous: (string | undefined)[]) {
 export async function withImportFixture<T>(use: (upstream: string) => Promise<T>) {
   const temporaryDirectory = await mkdtemp(path.join(tmpdir(), AGENTS_UPSTREAM_TEST));
   const upstream = await realpath(temporaryDirectory);
+  const asdUpstream = upstream + "-asd";
   const keys = [
     "GIT_CONFIG_COUNT",
     "GIT_CONFIG_KEY_0",
@@ -115,16 +139,20 @@ export async function withImportFixture<T>(use: (upstream: string) => Promise<T>
     "GIT_CONFIG_VALUE_1",
     "GIT_CONFIG_KEY_2",
     "GIT_CONFIG_VALUE_2",
+    "GIT_CONFIG_KEY_3",
+    "GIT_CONFIG_VALUE_3",
   ];
   const previous = keys.map((key) => process.env[key]);
 
   try {
     await prepareFixture(upstream);
+    await prepareAsdFixture(asdUpstream);
 
     return await use(upstream);
   } finally {
     restoreEnvironment(keys, previous);
 
     await rm(upstream, { recursive: true, force: true });
+    await rm(asdUpstream, { recursive: true, force: true });
   }
 }

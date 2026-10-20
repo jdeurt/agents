@@ -5,33 +5,95 @@ description: Use when reviewing a completed code change or finishing a distinct 
 
 # Code review
 
-Review the completed logical change after each distinct feature or bug fix, including when one task contains several changes. Run from the project root with `npx`. Check whether jscpd found a project config:
+Review each completed logical change after a distinct feature or bug fix. Review each change separately when one task contains several changes.
+
+## Establish the review scope
+
+Identify the active project root and the change baseline. Read the diff and the complete changed code. Include callers, dependencies, and unchanged source when they affect the change.
+
+Read the project's written rules and tool configuration. Explicit project rules take precedence over this skill. An observed convention is not a written rule. Use observed conventions only where no explicit rule applies.
+
+## Review against the style guide
+
+Use `jdeurt-engineering:formatting-linting` for the project's language. Read [Rules of style](../formatting-linting/references/style-rules.md) before reviewing the change. Apply each relevant criterion with the language's native constructs.
+
+Check the following areas:
+
+- Legibility, naming, layout, declaration scope, and structural spacing.
+- Duplication, dead work, simple operations, and supported dependencies.
+- Conditions, control flow, mutation, state ownership, and repeatable calculations.
+- API contracts, null checks, runtime validation, types, initialization, and exceptions.
+- Asynchronous work, concurrency, resource cleanup, and cancellation.
+- Collections, text, encoding, numbers, and data conversion.
+- Input handling, protocols, performance, caches, interfaces, and graphics.
+
+Inspect behavior and ownership before proposing a structural change. Check applicable formatting, lint, type, test, and build results. Fix findings within the authorized scope. Preserve the project's rules when a check fails.
+
+## Review changed text
+
+Perform this writing review at the end of the turn, before handoff.
+
+Use `jdeurt-writing:coherent-editing` for all changed text. Include comments, Markdown, specifications, skills, agent instructions, and user-facing product copy. Read the complete affected text and dependent passages. Check meaning, consistency, links, examples, and interface states where applicable.
+
+Use `jdeurt-writing:asd-ste100` only for technical and agent-facing text. Apply its scope to technical comments, Markdown, specifications, skills, and agent instructions. Do not apply ASD-STE100 to user-facing product copy.
+
+Follow each skill's review and validation instructions. Preserve project rules, meaning, conditions, quoted material, and intentionally bad examples. Report the writing checks performed and their scope.
+
+## Compare the change with other project source
+
+Check added and changed code for Type-1, Type-2, and Type-3 duplicates. Type-1 means exact code, with layout or comment differences. Type-2 permits renamed identifiers or changed literals. Type-3 permits added, removed, or changed code.
+
+Scan all appropriate project source, including unchanged files outside the diff. Filter findings to pairs involving added or changed code. A scan limited to changed files misses copies elsewhere.
+
+Read [jscpd capability notes](references/jscpd.md) before selecting tools or interpreting coverage. Preserve configured scan roots, ignores, thresholds, and the user's scope. Exclude generated and vendored code according to project policy.
+
+### Use the MCP server
+
+Check that the server's configured paths target the active project root. The installed plugin directory is not the project root. Reconnect with the active project path if needed. Use the CLI fallback when the server cannot scan the project.
+
+1. Call `check_current_directory` after the edit with `kinds: ["exact", "renamed", "similar"]`.
+2. Call `get_file_clones` for changed files when the complete report needs a narrower view. Request the same kinds.
+3. Use `check_duplication` when a snippet needs comparison with the scanned project. Request the same kinds.
+4. Inspect both source fragments for each relevant match.
+
+`similar` requests both gap and syntax-tree analysis. Some languages do not support the syntax-tree pass. Report unsupported passes and detection thresholds.
+
+Check total counts, returned counts, truncation notes, and unavailable analyses. Increase `limit` or use focused file queries when a list is incomplete. Use the CLI fallback for remaining coverage gaps. Exclude a snippet's own unchanged location from evidence of duplication with other source.
+
+### Use the CLI fallback
+
+Run from the active project root. Inspect project configuration before using `--debug` to inspect merged settings. Keep this review to Type-1, Type-2, and Type-3 analyses.
+
+When no project configuration exists, run:
 
 ```sh
-npx -y jscpd@5 --debug
+npx -y jscpd@5 . --reporters ai --kind exact,renamed,similar --ignore-identifiers --ignore-literals --ignore-annotations --max-gap-lines 2 --similarity 0.8 --cross-formats js-ts
 ```
 
-If it reports a config file, use that project's settings without adding the default scan flags:
+For a configured project, preserve its roots, ignores, thresholds, and format settings. Add only analysis switches needed for the requested clone kinds. Do not replace configured paths with the changed-file list. Report conflicts between requested coverage and project restrictions.
+
+Read both fragments before treating a match as duplicate logic. Preserve intentional similarities when a shared abstraction would obscure their distinct contracts. Rerun the same analyses after a relevant fix.
+
+## Check added code for dead code
+
+Use the CLI for this step. The MCP server does not provide dead-code analysis.
+
+Scan the project dependency context, then filter findings to code added by this change. Use the baseline and added diff ranges to identify that code. Include new files and declarations added within existing files.
+
+Preserve project configuration when it exists:
 
 ```sh
-npx -y jscpd@5
+npx -y jscpd@5 --dead-code --reporters ai
 ```
 
-Review the analyses the project configured and report their scope. If semantic analysis is configured and its model is missing, download the model as jscpd requests. Do not bypass or replace a project config to widen coverage.
-
-Only when no jscpd config exists, use the following defaults. Download the local semantic model once if it is not cached:
+When no configuration exists, run:
 
 ```sh
-npx -y jscpd@5 --semantic-download
-```
-
-Scan for exact, renamed, near-miss, structural, and semantic clones, including JavaScript/TypeScript cross-format copies, then scan for dead code:
-
-```sh
-npx -y jscpd@5 . --reporters ai --ignore-identifiers --ignore-literals --ignore-annotations --max-gap-lines 2 --similarity=0.8 --semantic --cross-formats js-ts
 npx -y jscpd@5 . --dead-code --dead-code-categories all --min-confidence 0 --include-tests --include-entry-exports --reporters ai
 ```
 
-Review findings involving the completed change. Inspect both sides of a plausible clone before refactoring; treat semantic matches as leads. Check callers, dynamic use, and framework entry points before removing reported dead code. Rerun the relevant scan after resolving a finding. Report relevant findings and any scan that could not run.
+Check references, dynamic loading, public APIs, and framework entry points before deleting a finding. Treat static findings as evidence to inspect. Report unsupported languages or incomplete context. Use supplied compiler diagnostics for Rust. Do not run project build scripts merely to obtain Rust diagnostics.
 
-Without a project config, the default clone scan covers every format jscpd supports; structural, semantic, and dead-code checks cover their documented language subsets. Rust dead-code analysis requires compiler diagnostics supplied to jscpd; do not run project build scripts merely to obtain them. See the bundled `jdeurt-engineering:jscpd` skill for additional jscpd workflows. Read [jscpd capability notes](references/jscpd.md) before changing scan options or interpreting coverage.
+## Report the result
+
+Report material findings with paths, locations, and their effect. State the style criteria and checks used. State the writing checks and their text scope. State the duplicate kinds, source coverage, and dead-code scope. Identify unresolved findings and checks that could not run. Distinguish an incomplete scan from a scan with no relevant findings.

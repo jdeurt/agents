@@ -1,15 +1,15 @@
 [[imports]]
 name = "shadcn"
-kind = "skill"
 repository = "https://github.com/shadcn-ui/ui.git"
+kind = "skill"
 path = "skills/shadcn"
 destination = "plugins/design/skills/shadcn"
 license = "LICENSE.md"
 
 [[imports]]
-kind = "plugin"
 name = "cloudflare"
 repository = "https://github.com/cloudflare/skills.git"
+kind = "plugin"
 path = "."
 destination = "plugins/cloudflare"
 license = "LICENSE"
@@ -19,40 +19,49 @@ local_mcp = true
 
 [[imports]]
 name = "jscpd"
-kind = "skill"
 repository = "https://github.com/kucherenko/jscpd.git"
+kind = "skill"
 path = "skills/jscpd"
 destination = "plugins/engineering/skills/jscpd"
 license = "LICENSE"
 
 [[imports]]
 name = "dry-refactoring"
-kind = "skill"
 repository = "https://github.com/kucherenko/jscpd.git"
+kind = "skill"
 path = "skills/dry-refactoring"
 destination = "plugins/engineering/skills/dry-refactoring"
 license = "LICENSE"
 
 [[imports]]
 name = "codebase-refactoring"
-kind = "skill"
 repository = "https://github.com/kucherenko/jscpd.git"
+kind = "skill"
 path = "skills/codebase-refactoring"
 destination = "plugins/engineering/skills/codebase-refactoring"
 license = "LICENSE"
 
 [[imports]]
 name = "compare-codebases"
-kind = "skill"
 repository = "https://github.com/kucherenko/jscpd.git"
+kind = "skill"
 path = "skills/compare-codebases"
 destination = "plugins/engineering/skills/compare-codebases"
 license = "LICENSE"
 
 [[imports]]
 name = "code-migration"
-kind = "skill"
 repository = "https://github.com/kucherenko/jscpd.git"
+kind = "skill"
 path = "skills/code-migration"
 destination = "plugins/engineering/skills/code-migration"
 license = "LICENSE"
+
+[[imports]]
+kind = "skill"
+name = "asd-ste100"
+repository = "https://github.com/danyuchn/asd-ste100-skill.git"
+path = "."
+destination = "plugins/writing/skills/asd-ste100"
+license = "LICENSE"
+scripts = ["scripts/ste-lint.py"]
