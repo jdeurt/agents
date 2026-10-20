@@ -1,4 +1,5 @@
 import type { ESLint, JSSyntaxElement, Rule } from "eslint";
+import { nameEffects, separateEffects } from "./eslint-effects/rules.ts";
 
 /**
 Read an AST field without assuming the input is an object.
@@ -133,6 +134,8 @@ const constOnTop: Rule.RuleModule = {
   },
 };
 
-const plugin: ESLint.Plugin = { rules: { "const-on-top": constOnTop } };
+const plugin: ESLint.Plugin = {
+  rules: { "const-on-top": constOnTop, "name-effects": nameEffects, "separate-effects": separateEffects },
+};
 
 export default plugin;

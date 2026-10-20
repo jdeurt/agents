@@ -14,6 +14,7 @@ async function copySources(root: string, resolved: string) {
     "eslint.config.ts",
     "prettier.config.mjs",
     "eslint-rules.ts",
+    "eslint-effects",
     "marketplace.toml",
     "imports.toml",
   ]) {

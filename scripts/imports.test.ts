@@ -33,6 +33,7 @@ async function copyImportSources(root: string) {
     "plugins",
     "eslint.config.ts",
     "eslint-rules.ts",
+    "eslint-effects",
     "prettier.config.mjs",
     "marketplace.toml",
     IMPORTS_TOML,
