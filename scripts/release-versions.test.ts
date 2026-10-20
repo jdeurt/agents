@@ -6,17 +6,16 @@ import path from "node:path";
 import { test } from "bun:test";
 import { tmpdir } from "node:os";
 import { writeFile } from "./io.ts";
+
 const NIGHTLY_CONTENT_CHANGES_ADVANCE_VERSIONS_WHILE_IDENTICAL =
   "nightly content changes advance versions while identical builds retain them";
 const AGENTS_VERSIONS = "agents-versions-";
 const DIST_CODEX_PLUGINS_EXAMPLE = "dist/codex/plugins/example";
 const CODEX_PLUGIN = ".codex-plugin";
 const CODEX_PLUGIN_PLUGIN_JSON = ".codex-plugin/plugin.json";
-const SKILL_MD = "skill.md";
+
 const UPDATED_UPSTREAM = "updated upstream";
 const CODEX_EXAMPLE = "codex/example";
-const VALUE_1_0_1 = "1.0.1";
-const VALUE_2_0_0 = "2.0.0";
 
 const manifest = '{"name":"jdeurt-example","version":"1.0.0"}\n';
 const registry: Registry = {
@@ -32,11 +31,13 @@ async function resetAndRelease(output: string, directory: string, previous: Rele
 
 async function assertUnchanged(output: string, directory: string, previous: ReleaseState) {
   const unchanged = await resetAndRelease(output, directory, previous);
+
   assert.deepEqual(unchanged, previous);
 }
 
 async function initialState(output: string, directory: string) {
   const first = await resetAndRelease(output, directory);
+
   await assertUnchanged(output, directory, first);
 
   return first;
@@ -49,7 +50,7 @@ async function prepareState(output: string, directory: string) {
 }
 
 async function updateState(output: string, directory: string, previous: ReleaseState) {
-  await writeFile(path.join(directory, SKILL_MD), UPDATED_UPSTREAM);
+  await writeFile(path.join(directory, "skill.md"), UPDATED_UPSTREAM);
 
   return resetAndRelease(output, directory, previous);
 }
@@ -62,10 +63,11 @@ test(NIGHTLY_CONTENT_CHANGES_ADVANCE_VERSIONS_WHILE_IDENTICAL, async () => {
     const first = await prepareState(output, directory);
     const second = await updateState(output, directory, first);
     const updated = second[CODEX_EXAMPLE];
+
     assert.ok(updated);
-    assert.equal(updated.version, VALUE_1_0_1);
+    assert.equal(updated.version, "1.0.1");
     await assertUnchanged(output, directory, second);
-    assert.equal(nextVersion(VALUE_2_0_0, VALUE_1_0_1), VALUE_2_0_0);
+    assert.equal(nextVersion("2.0.0", "1.0.1"), "2.0.0");
   } finally {
     await rm(output, { recursive: true, force: true });
   }

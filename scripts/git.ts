@@ -1,13 +1,10 @@
-const GIT = "git";
-const IGNORE = "ignore";
-const PIPE = "pipe";
 export function git(cwd: string, args: string[]): string {
-  const result = Bun.spawnSync([GIT, ...args], {
+  const result = Bun.spawnSync(["git", ...args], {
     cwd,
     env: { ...process.env },
-    stdin: IGNORE,
-    stdout: PIPE,
-    stderr: PIPE,
+    stdin: "ignore",
+    stdout: "pipe",
+    stderr: "pipe",
   });
 
   if (result.exitCode !== 0) {

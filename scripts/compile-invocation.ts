@@ -5,8 +5,9 @@ import { jsonRecord } from "./validation.ts";
 
 function parsePolicyMapping(document: unknown, configPath: string): Record<string, unknown> {
   if (!document || typeof document !== "object" || Array.isArray(document)) {
-    const message2 = `${configPath}: configuration must be a YAML mapping`;
-    throw new Error(message2);
+    const invalidConfigurationMessage = `${configPath}: configuration must be a YAML mapping`;
+
+    throw new Error(invalidConfigurationMessage);
   }
 
   return jsonRecord.parse(document);
@@ -19,14 +20,15 @@ function applyExplicitCodexPolicy(files: Map<string, HarnessOutput["files"][numb
     existing ? Bun.YAML.parse(Buffer.from(existing.contents).toString()) : {},
     configPath
   );
-  const policy: unknown = Reflect.get(document, values.POLICY);
+  const policy: unknown = Reflect.get(document, "policy");
 
   if (policy !== undefined && (!policy || typeof policy !== "object" || Array.isArray(policy))) {
-    const message3 = `${configPath}: policy must be a YAML mapping`;
-    throw new Error(message3);
+    const invalidPolicyMessage = `${configPath}: policy must be a YAML mapping`;
+
+    throw new Error(invalidPolicyMessage);
   }
 
-  Reflect.set(document, values.POLICY, {
+  Reflect.set(document, "policy", {
     ...(policy && typeof policy === "object" && !Array.isArray(policy) && policy),
     allow_implicit_invocation: false,
   });
@@ -39,17 +41,12 @@ function applyExplicitCodexPolicy(files: Map<string, HarnessOutput["files"][numb
 
 function requireSkill(skill: HarnessOutput["files"][number] | undefined, harness: string, name: string) {
   if (!skill) {
-    const message4 = `${harness}: missing skill ${name}`;
-    throw new Error(message4);
+    const missingSkillMessage = `${harness}: missing skill ${name}`;
+
+    throw new Error(missingSkillMessage);
   }
 
   return skill;
-}
-
-function serializedSkill(document: object, source: string, offset: number) {
-  const header = `---\n${Bun.YAML.stringify(document, undefined, 2).trimEnd()}\n---`;
-
-  return header + source.slice(offset);
 }
 
 export function applyInvocationPolicies(
@@ -60,7 +57,7 @@ export function applyInvocationPolicies(
   const files = new Map(output.files.map((file) => [file.path, file]));
 
   for (const [name, metadata] of skills) {
-    const isExplicit = metadata.metadata?.invocation === values.EXPLICIT;
+    const isExplicit = metadata.metadata?.invocation === "explicit";
 
     const skillPath = `skills/${name}/SKILL.md`;
     const skill = requireSkill(files.get(skillPath), harness, name);
@@ -81,21 +78,23 @@ export function applyInvocationPolicies(
       skillDocument[key] = value;
     }
 
-    if (harness === values.CODEX) {
+    if (harness === "codex") {
       Reflect.deleteProperty(skillDocument, values.ALLOWED_TOOLS);
       Reflect.deleteProperty(skillDocument, values.USER_INVOCABLE);
     }
 
-    if (isExplicit && harness === values.CLAUDE) {
+    if (isExplicit && harness === "claude") {
       skillDocument[values.DISABLE_MODEL_INVOCATION] = true;
     }
 
     files.set(skillPath, {
       ...skill,
-      contents: serializedSkill(skillDocument, source, header.position.end.offset),
+      contents:
+        `---\n${Bun.YAML.stringify(skillDocument, undefined, 2).trimEnd()}\n---` +
+        source.slice(header.position.end.offset),
     });
 
-    if (!isExplicit || harness !== values.CODEX) {
+    if (!isExplicit || harness !== "codex") {
       continue;
     }
 

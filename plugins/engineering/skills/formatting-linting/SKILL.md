@@ -13,7 +13,7 @@ Inspect the project's language, package manager, existing configuration, source 
 
 ## Style across languages
 
-Read [Rules of style](references/style-rules.md) when writing or reviewing code in any language. Apply its legibility, correctness, maintainability, duplication, state, resource, and API principles using the language’s native constructs. The reference derives general concepts from every enabled ESLint warning/error, preserves source-rule mappings and syntax-specific exclusions, and illustrates each concept with TypeScript. Follow its all-on-one-line or one-item-per-line convention independently at each nesting depth; the linter does not enforce every case.
+Read [Rules of style](references/style-rules.md) when writing or reviewing code in any language. Apply its legibility, correctness, maintainability, duplication, state, resource, and API principles using the language’s native constructs. The reference explains general concepts with TypeScript examples. Follow its all-on-one-line or one-item-per-line convention independently at each nesting depth; the linter does not enforce every case.
 
 ## JavaScript
 
@@ -21,7 +21,7 @@ Use these bundled files for JavaScript and TypeScript projects, including React:
 
 - [ESLint configuration](references/javascript/eslint.config.ts) defines the rules and typed project setup.
 - [Prettier configuration](references/javascript/prettier.config.mjs) defines formatting.
-- [Local ESLint rules](references/javascript/eslint-rules.ts) implements the named-string and constant-placement policies imported by the ESLint configuration.
+- [Local ESLint rules](references/javascript/eslint-rules.ts) implements the named-string and variable-placement policies imported by the ESLint configuration.
 
 Read all three before adoption. Copy them together into the project root, keeping their filenames and relative imports intact. The config's opening AGENTS comment requires explicit user authorization specifying which rules to add, remove, or modify before changing that file; retain the comment. For an existing project, inspect configuration and scripts first and reconcile the requested adoption with its conventions. Do not overwrite unrelated project settings.
 
@@ -71,10 +71,10 @@ Run automatic fixes only within the authorized source scope, inspect the diff, t
 
 The configuration uses recommended JavaScript and Unicorn rules, TypeScript ESLint strict and stylistic type-checked presets, and React Hooks and React Doctor presets for React files. It preserves inherited rule severities and defaults unless the source config explicitly overrides them. Complexity warns above 20 and try complexity warns above 1; the zero-warning command makes both enforceable. TypeScript files use the TypeScript equivalents of `no-use-before-define`, `no-magic-numbers`, and `no-shadow`.
 
-Prettier uses double quotes, semicolons, two-space indentation, 120 columns, ES5 trailing commas, and LF endings. Nonconflicting ESLint Stylistic recommended rules remain active. The config lists each omitted rule and its concrete Prettier conflict. Explicit spacing requires blank lines between class members, including single-line methods, and around class declarations. Keep TypeScript overload signatures together with their implementation.
+Prettier uses double quotes, semicolons, two-space indentation, 120 columns, ES5 trailing commas, and LF endings. Nonconflicting ESLint Stylistic recommended rules remain active. The config lists each omitted rule and its concrete Prettier conflict. Explicit spacing requires a blank line after the final import before a non-import statement, between class members including single-line methods, and around class declarations. Keep TypeScript overload signatures together with their implementation.
 
-`jdeurt/no-magic-strings` requires names for string values of at least three characters. Static named constants, including static arrays and objects, are allowed. Inline paths and user-facing text in calls must be extracted; string syntax such as property names, module sources, TypeScript literal types, and directives is exempt. The rule also inspects template text and JSX text. Choose meaningful names near the scope that owns each value.
+`jdeurt/no-magic-strings` allows inline strings of up to 10 characters and requires names for longer string values. The default `minLength` is 10; strings of exactly 10 characters are allowed. Static named constants, including static arrays and objects, are allowed. Inline paths and user-facing text in calls longer than 10 characters must be extracted; string syntax such as property names, module sources, TypeScript literal types, and directives is exempt. The rule also inspects template text and JSX text. Choose meaningful names near the scope that owns each value.
 
-`jdeurt/const-on-top` requires constants before executable statements in their program or block scope. Leading imports, type declarations, function declarations, and variable declarations can share the declaration prefix. Loop-header declarations remain valid. Preserve evaluation order and dependencies when restructuring; the rule deliberately does not automatically hoist initializers.
+`jdeurt/const-on-top` requires both `const` and `let` declarations before executable statements in their program or block scope. Leading imports, type declarations, function declarations, and variable declarations can share the declaration prefix. Consecutive declarations of the same kind may stay together. Leave a blank line after the final `const` or `let` before another kind of declaration or other code. Loop-header declarations remain valid. Preserve evaluation order and dependencies when restructuring; the rule deliberately does not automatically hoist initializers.
 
 `unicorn/consistent-function-scoping` flags functions that can move outward because they do not capture local state. It permits closures and other nested functions according to its own scope analysis; it does not ban every nested function, inline callback, or class method. Do not invent a broader function-placement restriction without the user's specified policy.

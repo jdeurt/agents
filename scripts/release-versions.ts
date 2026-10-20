@@ -1,23 +1,25 @@
 import * as z from "zod/mini";
 
 const VERSION_COMPONENT_COUNT = 3;
+
 import { readFile, writeFile } from "./io.ts";
 import type { Registry } from "./types.ts";
 import { digest } from "./sync-imports.ts";
 import { filesIn } from "./build-files.ts";
 import { jsonRecord } from "./validation.ts";
 import path from "node:path";
+
 const PUBLICATION_REQUIRES_PLAIN_SEMANTIC_VERSIONS = "Publication requires plain semantic versions";
-const DIST = "dist";
-const PLUGINS = "plugins";
+
 const PLUGIN_JSON = "plugin.json";
 const CODEX_PLUGIN_PLUGIN_JSON = ".codex-plugin/plugin.json";
 const CLAUDE_PLUGIN_PLUGIN_JSON = ".claude-plugin/plugin.json";
-const UTF8 = "utf8";
+
 const PUBLICATION_JSON = ".publication.json";
 
 export type ReleaseState = Record<string, { hash: string; version: string } | undefined>;
 export const releaseStateSchema = z.record(z.string(), z.object({ hash: z.string(), version: z.string() }));
+
 export function nextVersion(base: string, previous?: string) {
   const a = base.split(".").map(Number),
     b = previous ? previous.split(".").map(Number) : undefined;
@@ -46,7 +48,8 @@ export function nextVersion(base: string, previous?: string) {
 }
 
 async function writeVersion(filename: string, version: string) {
-  const value = jsonRecord.parse(JSON.parse(await readFile(filename, UTF8)));
+  const value = jsonRecord.parse(JSON.parse(await readFile(filename, "utf8")));
+
   await writeFile(filename, JSON.stringify({ ...value, version }, undefined, 2) + "\n");
 }
 
@@ -56,7 +59,7 @@ export async function releaseVersions(output: string, registry: Registry, previo
   for (const plugin of registry.plugins) {
     for (const harness of plugin.harnesses) {
       const key = `${harness}/${plugin.name}`;
-      const directory = path.join(output, DIST, harness, PLUGINS, plugin.name);
+      const directory = path.join(output, "dist", harness, "plugins", plugin.name);
       const hash = await digest(directory);
       const prior = previous[key];
       const version = prior?.hash === hash ? prior.version : nextVersion(plugin.version, prior?.version);

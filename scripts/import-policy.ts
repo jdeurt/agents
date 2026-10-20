@@ -6,21 +6,15 @@ import type { ExternalImport } from "./types.ts";
 import { filesIn } from "./build-files.ts";
 import { jsonRecord } from "./validation.ts";
 import path from "node:path";
+
 const RELATIVE_HIDDEN_MCP_PATH = "./.mcp.json";
-const RELATIVE_MCP_PATH = "./mcp.json";
-const HIDDEN_MCP_FILENAME = ".mcp.json";
-const MCP_FILENAME = "mcp.json";
-const COMMAND = "command";
-const TYPE = "type";
-const STDIO = "stdio";
+
 const PLUGIN_JSON = "plugin.json";
 const CODEX_PLUGIN_PLUGIN_JSON = ".codex-plugin/plugin.json";
 const CLAUDE_PLUGIN_PLUGIN_JSON = ".claude-plugin/plugin.json";
-const UTF8 = "utf8";
-const COM_OPENAI = "com.openai";
+
 const UPSTREAM_LICENSE = "UPSTREAM-LICENSE";
-const SKILL_MD = "SKILL.md";
-const ALL = "all";
+
 const IMPORT_RESTRICTIONS = "\n\n## Import restrictions\n\n";
 const THIS_PACKAGE_INTENTIONALLY_OMITS_THE_FOLLOWING_FILES =
   "This package intentionally omits the following files or executable integrations ";
@@ -43,6 +37,7 @@ const surfaceSchema = z.looseObject({
 
 function omitLocalServer(servers: object, name: string, file: string, omitted: string[]) {
   const omission = `${file}: local MCP ${name}`;
+
   Reflect.deleteProperty(servers, name);
   omitted.push(omission);
 }
@@ -54,7 +49,7 @@ function restrictServerEntries(servers: object, file: string, omitted: string[])
     if (!(
       server &&
       typeof server === "object" &&
-      (Reflect.has(server, COMMAND) || Reflect.get(server, TYPE) === STDIO)
+      (Reflect.has(server, "command") || Reflect.get(server, "type") === "stdio")
     )) {
       continue;
     }
@@ -69,7 +64,7 @@ function restrictLocalServers(
   entry: ExternalImport,
   omitted: string[]
 ) {
-  const servers = surface.mcpServers ?? (file === HIDDEN_MCP_FILENAME || file === MCP_FILENAME ? surface : undefined);
+  const servers = surface.mcpServers ?? (file === ".mcp.json" || file === "mcp.json" ? surface : undefined);
 
   if (!servers || typeof servers !== "object" || entry.local_mcp) {
     return;
@@ -85,15 +80,15 @@ function restrictSurface(
   omitted: string[]
 ) {
   if (!entry.hooks && surface.hooks !== undefined) {
-    const omission = `${file}: hooks`;
     delete surface.hooks;
-    omitted.push(omission);
+    omitted.push(`${file}: hooks`);
   }
 
   // Local MCP commands are executable entrypoints, including inline commands.
   // Require an explicit script policy AND local_mcp opt-in.
   if (!entry.local_mcp && Array.isArray(surface.mcpServers)) {
     const omission = `${file}: referenced MCP configurations`;
+
     delete surface.mcpServers;
     omitted.push(omission);
   }
@@ -101,9 +96,10 @@ function restrictSurface(
   if (
     !entry.local_mcp &&
     typeof surface.mcpServers === "string" &&
-    ![RELATIVE_HIDDEN_MCP_PATH, RELATIVE_MCP_PATH, HIDDEN_MCP_FILENAME, MCP_FILENAME].includes(surface.mcpServers)
+    ![RELATIVE_HIDDEN_MCP_PATH, "./mcp.json", ".mcp.json", "mcp.json"].includes(surface.mcpServers)
   ) {
     const omission = `${file}: custom MCP configuration`;
+
     delete surface.mcpServers;
     omitted.push(omission);
   }
@@ -112,18 +108,14 @@ function restrictSurface(
 }
 
 async function restrictManifests(directory: string, entry: ExternalImport, files: string[], omitted: string[]) {
-  const manifests = [
-    PLUGIN_JSON,
-    CODEX_PLUGIN_PLUGIN_JSON,
-    CLAUDE_PLUGIN_PLUGIN_JSON,
-    HIDDEN_MCP_FILENAME,
-    MCP_FILENAME,
-  ].filter((file) => files.includes(file));
+  const manifests = [PLUGIN_JSON, CODEX_PLUGIN_PLUGIN_JSON, CLAUDE_PLUGIN_PLUGIN_JSON, ".mcp.json", "mcp.json"].filter(
+    (file) => files.includes(file)
+  );
 
   for (const file of manifests) {
-    const source = await readFile(path.join(directory, file), UTF8);
+    const source = await readFile(path.join(directory, file), "utf8");
     const value = surfaceSchema.parse(JSON.parse(source));
-    const extension = value.extensions?.[COM_OPENAI];
+    const extension = value.extensions?.["com.openai"];
     const surfaces = extension === undefined ? [value] : [value, surfaceSchema.parse(extension)];
 
     for (const surface of surfaces) {
@@ -139,6 +131,7 @@ function validateAllowedScripts(files: string[], allowed: string | string[], ent
     for (const file of allowed) {
       if (!files.includes(file)) {
         const message = `${entry.name}: allowed script does not exist: ${file}`;
+
         throw new Error(message);
       }
     }
@@ -157,10 +150,11 @@ async function writePolicyNotes(directory: string, files: string[], omitted: str
     USE_THE_INCLUDED_RESOURCES_IF_A_TASK +
     TO_UPDATE_THE_IMPORT_POLICY_INCLUDED_SCRIPTS;
   const note = intro + list + outro;
-  const skills = files.filter((file) => path.basename(file) === SKILL_MD);
+  const skills = files.filter((file) => path.basename(file) === "SKILL.md");
 
   for (const file of skills) {
-    const original = await readFile(path.join(directory, file), UTF8);
+    const original = await readFile(path.join(directory, file), "utf8");
+
     await writeFile(path.join(directory, file), original.trimEnd() + note);
   }
 
@@ -172,7 +166,8 @@ export async function applyImportPolicy(directory: string, entry: ExternalImport
   const allowed = entry.scripts ?? [];
 
   const omitted: string[] = [];
-  const executableCandidates = files.filter((file) => file !== UPSTREAM_LICENSE && path.basename(file) !== SKILL_MD);
+  const executableCandidates = files.filter((file) => file !== UPSTREAM_LICENSE && path.basename(file) !== "SKILL.md");
+
   validateAllowedScripts(files, allowed, entry);
 
   for (const file of executableCandidates) {
@@ -181,7 +176,7 @@ export async function applyImportPolicy(directory: string, entry: ExternalImport
     const isScript =
       shebang === "#!" || CODE.test(file) || Boolean(info.mode & EXECUTABLE_BITS) || /(^|\/)(scripts|bin)\//.test(file);
 
-    if (!isScript || allowed === ALL || allowed.includes(file)) {
+    if (!isScript || allowed === "all" || allowed.includes(file)) {
       continue;
     }
 

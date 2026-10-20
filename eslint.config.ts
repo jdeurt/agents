@@ -11,35 +11,33 @@ import reactHooks from "eslint-plugin-react-hooks";
 import stylistic from "@stylistic/eslint-plugin";
 import tseslint from "typescript-eslint";
 import unicorn from "eslint-plugin-unicorn";
+
 const RECOMMENDED_LATEST = "recommended-latest";
-const DIST = "dist/**";
+
 const NODE_MODULES = "node_modules/**";
 const MARKETPLACE_BUILD = ".marketplace-build/**";
 const MARKETPLACE_VERIFY = ".marketplace-verify/**";
-const READONLY = "readonly";
-const ERROR = "error";
-const WARN = "warn";
-const OFF = "off";
-const IGNORED_PRIVATE_NAME_PATTERN = "^_.*";
+
 const CHAINED_TYPE_ASSERTION_SELECTOR =
   ":matches(TSAsExpression, TSTypeAssertion) > :matches(TSAsExpression, TSTypeAssertion)";
 const CHAINED_TYPE_ASSERTION_MESSAGE = "Validate the value instead of chaining type assertions.";
 const JSX_TSX = "**/*.{jsx,tsx}";
-const ALL = "all";
+
 const UNICORN_NO_NESTED_TERNARY = "unicorn/no-nested-ternary";
-const ALWAYS = "always";
-const FUNCTION = "function";
-const CLASS = "class";
-const SWITCH = "switch";
-const FOR = "for";
-const WHILE = "while";
-const TRY = "try";
+
+const VARIABLE_DECLARATION_SELECTOR =
+  ":matches(VariableDeclaration[kind='const'], VariableDeclaration[kind='let'], ExportNamedDeclaration[declaration.kind='const'], ExportNamedDeclaration[declaration.kind='let'])";
+const CONST_DECLARATION_SELECTOR =
+  ":matches(VariableDeclaration[kind='const'], ExportNamedDeclaration[declaration.kind='const'])";
+const LET_DECLARATION_SELECTOR =
+  ":matches(VariableDeclaration[kind='let'], ExportNamedDeclaration[declaration.kind='let'])";
+const FUNCTION_DECLARATION_SELECTOR =
+  ":matches(FunctionDeclaration, ExportNamedDeclaration[declaration.type='FunctionDeclaration'], ExportDefaultDeclaration[declaration.type='FunctionDeclaration'])";
+const FUNCTION_OVERLOAD_SELECTOR =
+  ":matches(TSDeclareFunction, ExportNamedDeclaration[declaration.type='TSDeclareFunction'], ExportDefaultDeclaration[declaration.type='TSDeclareFunction'])";
 const EXPORTED_CLASS_SELECTOR =
   ":matches(ExportNamedDeclaration, ExportDefaultDeclaration)[declaration.type='ClassDeclaration']";
 const COMPLETED_SWITCH_CASE_SELECTOR = "SwitchCase[consequent.length>0]";
-const CASE = "case";
-const DEFAULT = "default";
-const RETURN = "return";
 
 // The build copies this source and bundles these pinned dependencies for Engineering.
 const resolutionRoot = fileURLToPath(new URL(".", import.meta.url));
@@ -66,7 +64,7 @@ export function createConfig(options: { typed?: boolean; tsconfigRootDir?: strin
   const reactRules = reactHooks.configs.flat[RECOMMENDED_LATEST].rules;
 
   return defineConfig([
-    { ignores: [DIST, NODE_MODULES, MARKETPLACE_BUILD, MARKETPLACE_VERIFY] },
+    { ignores: ["dist/**", NODE_MODULES, MARKETPLACE_BUILD, MARKETPLACE_VERIFY] },
     { ...js.configs.recommended, files },
     { ...unicorn.configs.recommended, files },
     // Keep TypeScript-only core replacements scoped while enabling typed checks for JavaScript too.
@@ -77,49 +75,46 @@ export function createConfig(options: { typed?: boolean; tsconfigRootDir?: strin
     {
       files,
       languageOptions: {
-        globals: { console: READONLY, Bun: READONLY, process: READONLY, Buffer: READONLY },
+        globals: { console: "readonly", Bun: "readonly", process: "readonly", Buffer: "readonly" },
       },
       rules: {
-        "max-lines": [ERROR, { max: 350, skipBlankLines: false, skipComments: false }],
-        "max-len": [ERROR, { code: 120, tabWidth: 2 }],
-        "no-duplicate-imports": WARN,
-        "no-inner-declarations": WARN,
-        "no-self-compare": WARN,
-        "no-unreachable-loop": WARN,
-        "no-use-before-define": WARN,
-        complexity: WARN,
-        eqeqeq: WARN,
-        "no-lonely-if": WARN,
+        "max-lines": ["error", { max: 350, skipBlankLines: false, skipComments: false }],
+        "max-len": ["error", { code: 120, tabWidth: 2 }],
+        "no-duplicate-imports": "warn",
+        "no-inner-declarations": "warn",
+        "no-self-compare": "warn",
+        "no-unreachable-loop": "warn",
+        "no-use-before-define": "warn",
+        complexity: "warn",
+        eqeqeq: "warn",
+        "no-lonely-if": "warn",
         // Structural offsets and small counts are self-explanatory; other values need names.
-        "no-magic-numbers": [WARN, { ignore: [0, 1, 2] }],
-        "no-shadow": WARN,
-        "no-var": ERROR,
-        "prefer-const": WARN,
-        "sort-imports": WARN,
-        "unicorn/no-repeated-call-wrappers": WARN,
-        "unicorn/try-complexity": WARN,
-        "unicorn/no-array-reduce": OFF,
-        "unicorn/name-replacements": OFF,
-        "unicorn/filename-case": [ERROR, { cases: { kebabCase: true, pascalCase: true } }],
+        "no-magic-numbers": ["warn", { ignore: [0, 1, 2] }],
+        "no-shadow": "warn",
+        "no-var": "error",
+        "prefer-const": "warn",
+        "sort-imports": "warn",
+        "unicorn/no-repeated-call-wrappers": "warn",
+        "unicorn/try-complexity": "warn",
+        "unicorn/no-array-reduce": "off",
+        "unicorn/name-replacements": "off",
+        "unicorn/filename-case": ["error", { cases: { kebabCase: true, pascalCase: true } }],
       },
     },
     {
       files: tsFiles,
       plugins: { "@typescript-eslint": tseslint.plugin },
       rules: {
-        "no-magic-numbers": OFF,
-        "no-shadow": OFF,
-        "no-use-before-define": OFF,
-        "@typescript-eslint/no-magic-numbers": [WARN, { ignore: [0, 1, 2] }],
-        "@typescript-eslint/no-shadow": WARN,
-        "@typescript-eslint/no-use-before-define": WARN,
-        "@typescript-eslint/consistent-type-imports": ERROR,
-        "@typescript-eslint/no-unused-vars": [
-          WARN,
-          { argsIgnorePattern: IGNORED_PRIVATE_NAME_PATTERN, varsIgnorePattern: IGNORED_PRIVATE_NAME_PATTERN },
-        ],
+        "no-magic-numbers": "off",
+        "no-shadow": "off",
+        "no-use-before-define": "off",
+        "@typescript-eslint/no-magic-numbers": ["warn", { ignore: [0, 1, 2] }],
+        "@typescript-eslint/no-shadow": "warn",
+        "@typescript-eslint/no-use-before-define": "warn",
+        "@typescript-eslint/consistent-type-imports": "error",
+        "@typescript-eslint/no-unused-vars": ["warn", { argsIgnorePattern: "^_.*", varsIgnorePattern: "^_.*" }],
         "no-restricted-syntax": [
-          ERROR,
+          "error",
           {
             selector: CHAINED_TYPE_ASSERTION_SELECTOR,
             message: CHAINED_TYPE_ASSERTION_MESSAGE,
@@ -128,7 +123,7 @@ export function createConfig(options: { typed?: boolean; tsconfigRootDir?: strin
       },
     },
     ...(options.typed
-      ? [{ files: tsFiles, rules: { "@typescript-eslint/no-unsafe-type-assertion": ERROR } as const }]
+      ? [{ files: tsFiles, rules: { "@typescript-eslint/no-unsafe-type-assertion": "error" } as const }]
       : []),
     { files: [JSX_TSX], languageOptions: { parserOptions: { ecmaFeatures: { jsx: true } } } },
     { files: [JSX_TSX], plugins: { "react-hooks": { rules: reactHooks.rules } }, rules: reactRules },
@@ -156,42 +151,63 @@ export function createConfig(options: { typed?: boolean; tsconfigRootDir?: strin
     {
       files,
       rules: {
-        "prettier/prettier": [ERROR, prettierOptions, { usePrettierrc: false }],
-        curly: [ERROR, ALL],
-        "unicorn/no-nested-ternary": unicorn.configs.recommended.rules?.[UNICORN_NO_NESTED_TERNARY] ?? ERROR,
+        "prettier/prettier": ["error", prettierOptions, { usePrettierrc: false }],
+        curly: ["error", "all"],
+        "unicorn/no-nested-ternary": unicorn.configs.recommended.rules?.[UNICORN_NO_NESTED_TERNARY] ?? "error",
       },
     },
     {
       files,
       plugins: { "@stylistic": stylistic, jdeurt: policy },
       rules: {
-        "jdeurt/no-magic-strings": ERROR,
-        "jdeurt/const-on-top": ERROR,
+        "jdeurt/no-magic-strings": "error",
+        "jdeurt/const-on-top": "error",
         "@stylistic/lines-between-class-members": [
-          ERROR,
-          ALWAYS,
+          "error",
+          "always",
           { exceptAfterSingleLine: false, exceptAfterOverload: true },
         ],
         "@stylistic/padding-line-between-statements": [
-          WARN,
-          { blankLine: ALWAYS, prev: "*", next: [FUNCTION, CLASS, "if", SWITCH, FOR, WHILE, "do", TRY] },
-          { blankLine: ALWAYS, prev: [FUNCTION, CLASS, "if", SWITCH, FOR, WHILE, "do", TRY], next: "*" },
+          "warn",
+          { blankLine: "always", prev: "import", next: "*" },
+          { blankLine: "any", prev: "import", next: "import" },
+          { blankLine: "always", prev: { selector: VARIABLE_DECLARATION_SELECTOR }, next: "*" },
           {
-            blankLine: ALWAYS,
+            blankLine: "any",
+            prev: { selector: CONST_DECLARATION_SELECTOR },
+            next: { selector: CONST_DECLARATION_SELECTOR },
+          },
+          {
+            blankLine: "any",
+            prev: { selector: LET_DECLARATION_SELECTOR },
+            next: { selector: LET_DECLARATION_SELECTOR },
+          },
+          { blankLine: "always", prev: "*", next: { selector: FUNCTION_DECLARATION_SELECTOR } },
+          { blankLine: "always", prev: { selector: FUNCTION_DECLARATION_SELECTOR }, next: "*" },
+          { blankLine: "always", prev: "*", next: { selector: FUNCTION_OVERLOAD_SELECTOR } },
+          { blankLine: "always", prev: "*", next: ["class", "if", "switch", "for", "while", "do", "try"] },
+          { blankLine: "always", prev: ["class", "if", "switch", "for", "while", "do", "try"], next: "*" },
+          {
+            blankLine: "always",
             prev: "*",
             next: {
               selector: EXPORTED_CLASS_SELECTOR,
             },
           },
           {
-            blankLine: ALWAYS,
+            blankLine: "always",
             prev: {
               selector: EXPORTED_CLASS_SELECTOR,
             },
             next: "*",
           },
-          { blankLine: ALWAYS, prev: { selector: COMPLETED_SWITCH_CASE_SELECTOR }, next: [CASE, DEFAULT] },
-          { blankLine: ALWAYS, prev: "*", next: RETURN },
+          { blankLine: "always", prev: { selector: COMPLETED_SWITCH_CASE_SELECTOR }, next: ["case", "default"] },
+          { blankLine: "always", prev: "*", next: "return" },
+          {
+            blankLine: "any",
+            prev: { selector: FUNCTION_OVERLOAD_SELECTOR },
+            next: [{ selector: FUNCTION_OVERLOAD_SELECTOR }, { selector: FUNCTION_DECLARATION_SELECTOR }],
+          },
         ],
       },
     },

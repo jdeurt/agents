@@ -1,28 +1,12 @@
-export const CLAUDE = "claude";
-export const CODEX = "codex";
-export const CODE = "code";
-export const FILE_NOT_FOUND = "ENOENT";
 export const MARKETPLACE = "marketplace";
-export const PLUGINS = "plugins";
-export const REGISTRY = "registry";
-export const NAME_2 = "name";
+
 export const DISPLAY_NAME = "display_name";
-export const OWNER = "owner";
+
 export const DESCRIPTION = "description";
 export const MARKETPLACE_DISPLAY_NAME = "marketplace.display_name";
 export const MARKETPLACE_NAME_MUST_USE_LOWERCASE_KEBAB_CASE = "marketplace.name must use lowercase kebab-case";
 export const PLUGINS_MUST_BE_AN_ARRAY = "plugins must be an array";
-export const VERSION_2 = "version";
-export const HARNESSES_2 = "harnesses";
-export const CATEGORY = "category";
+
 export const AUTHENTICATION = "authentication";
-export const SOUBI = "soubi";
-export const NATIVE = "native";
-export const AUTHOR = "author";
-export const LICENSE = "license";
-export const PLUGIN = "plugin";
-export const ON_INSTALL = "on-install";
-export const ON_USE = "on-use";
-export const MCPSERVERS = "mcpServers";
-export const ASSETS = "assets";
+
 export const HARNESSDEFAULTS = "harnessDefaults";

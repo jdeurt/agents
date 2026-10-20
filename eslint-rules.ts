@@ -1,60 +1,25 @@
 import type { ESLint, JSSyntaxElement, Rule } from "eslint";
 
-const suggestionType = "suggestion";
 const tokens = {
-  typeof: "typeof",
-  operator: "operator",
-  unaryExpression: "UnaryExpression",
-  binaryExpression: "BinaryExpression",
-  right: "right",
-  left: "left",
-  object: "object",
-  type: "type",
-  string: "string",
   arrayExpression: "ArrayExpression",
   objectExpression: "ObjectExpression",
-  property: "Property",
   tSAsExpression: "TSAsExpression",
   tSSatisfiesExpression: "TSSatisfiesExpression",
-  parent: "parent",
   variableDeclarator: "VariableDeclarator",
-  init: "init",
-  identifier: "Identifier",
-  kind: "kind",
-  const: "const",
   tSLiteralType: "TSLiteralType",
   tSImportType: "TSImportType",
   expressionStatement: "ExpressionStatement",
-  directive: "directive",
   tSModuleDeclaration: "TSModuleDeclaration",
-  key: "key",
-  source: "source",
   importDeclaration: "ImportDeclaration",
   exportNamedDeclaration: "ExportNamedDeclaration",
   exportAllDeclaration: "ExportAllDeclaration",
-  value: "value",
-  cooked: "cooked",
-  raw: "raw",
-  quasis: "quasis",
-  suggestion: "suggestion",
-  integer: "integer",
-  minLength: "minLength",
-  number: "number",
-  extract: "extract",
   exportDefaultDeclaration: "ExportDefaultDeclaration",
   declaration: "declaration",
-  declare: "declare",
   variableDeclaration: "VariableDeclaration",
   functionDeclaration: "FunctionDeclaration",
   tSDeclareFunction: "TSDeclareFunction",
   tSTypeAliasDeclaration: "TSTypeAliasDeclaration",
   tSInterfaceDeclaration: "TSInterfaceDeclaration",
-  body: "body",
-  loc: "loc",
-  start: "start",
-  line: "line",
-  column: "column",
-  move: "move",
 };
 
 function property(value: unknown, key: string): unknown {
@@ -62,7 +27,7 @@ function property(value: unknown, key: string): unknown {
 }
 
 function typeOf(value: unknown): string {
-  const type = property(value, tokens.type);
+  const type = property(value, "type");
 
   return typeof type === "string" ? type : "";
 }
@@ -71,54 +36,38 @@ function isConstantInitializer(node: unknown): boolean {
   const containers = new Set([
     tokens.arrayExpression,
     tokens.objectExpression,
-    tokens.property,
+    "Property",
     tokens.tSAsExpression,
     tokens.tSSatisfiesExpression,
   ]);
+
   let current = node;
-  let parent = property(current, tokens.parent);
+  let parent = property(current, "parent");
 
   while (containers.has(typeOf(parent))) {
     current = parent;
-    parent = property(current, tokens.parent);
+    parent = property(current, "parent");
   }
 
   return (
     typeOf(parent) === tokens.variableDeclarator &&
-    property(parent, tokens.init) === current &&
-    typeOf(property(parent, "id")) === tokens.identifier &&
-    property(property(parent, tokens.parent), tokens.kind) === tokens.const
-  );
-}
-
-function isTypeofComparison(node: unknown): boolean {
-  const parent = property(node, tokens.parent);
-  const left = property(parent, tokens.left);
-  const right = property(parent, tokens.right);
-  const value = property(node, tokens.value);
-  const types = ["string", "object", "number", "undefined", "boolean", "function", "symbol", "bigint"];
-
-  return (
-    typeof value === "string" &&
-    types.includes(value) &&
-    typeOf(parent) === tokens.binaryExpression &&
-    ((typeOf(left) === tokens.unaryExpression && property(left, tokens.operator) === tokens.typeof) ||
-      (typeOf(right) === tokens.unaryExpression && property(right, tokens.operator) === tokens.typeof))
+    property(parent, "init") === current &&
+    typeOf(property(parent, "id")) === "Identifier" &&
+    property(property(parent, "parent"), "kind") === "const"
   );
 }
 
 function isStringSyntax(node: unknown): boolean {
-  const parent = property(node, tokens.parent);
+  const parent = property(node, "parent");
   const type = typeOf(parent);
 
   return (
-    isTypeofComparison(node) ||
     type === tokens.tSLiteralType ||
     type === tokens.tSImportType ||
-    (type === tokens.expressionStatement && typeof property(parent, tokens.directive) === "string") ||
+    (type === tokens.expressionStatement && typeof property(parent, "directive") === "string") ||
     (type === tokens.tSModuleDeclaration && property(parent, "id") === node) ||
-    property(parent, tokens.key) === node ||
-    (property(parent, tokens.source) === node &&
+    property(parent, "key") === node ||
+    (property(parent, "source") === node &&
       [tokens.importDeclaration, tokens.exportNamedDeclaration, tokens.exportAllDeclaration].includes(type))
   );
 }
@@ -128,44 +77,50 @@ function stringValue(value: unknown): string {
 }
 
 function quasiText(quasi: unknown): string {
-  const value = property(quasi, tokens.value);
-  const cooked = property(value, tokens.cooked);
+  const value = property(quasi, "value");
+  const cooked = property(value, "cooked");
 
-  return typeof cooked === "string" ? cooked : stringValue(property(value, tokens.raw));
+  return typeof cooked === "string" ? cooked : stringValue(property(value, "raw"));
 }
 
 function templateText(node: unknown): string {
-  const quasis = property(node, tokens.quasis);
+  const quasis = property(node, "quasis");
 
   return Array.isArray(quasis) ? quasis.map((quasi: unknown) => quasiText(quasi)).join("") : "";
 }
 
 const noMagicStrings: Rule.RuleModule = {
   meta: {
-    type: suggestionType,
+    type: "suggestion",
     docs: { description: "Name string values with constants instead of embedding them in expressions." },
     schema: [
       {
-        type: tokens.object,
-        properties: { minLength: { type: tokens.integer, minimum: 0 } },
+        type: "object",
+        properties: {
+          minLength: {
+            type: "integer",
+            minimum: 0,
+            description: "Report strings longer than this length; allow lengths up to and including it.",
+          },
+        },
         additionalProperties: false,
       },
     ],
-    defaultOptions: [{ minLength: 3 }],
+    defaultOptions: [{ minLength: 10 }],
     messages: { extract: "Extract this string into a named constant." },
   },
   create(context) {
     const options: unknown = context.options[0];
-    const configured = property(options, tokens.minLength);
-    const defaultMinimum = 3;
+    const configured = property(options, "minLength");
+    const defaultMinimum = 10;
     const minimum = typeof configured === "number" ? configured : defaultMinimum;
 
     function inspect(node: JSSyntaxElement, value: string) {
-      if (value.length < minimum || isConstantInitializer(node) || isStringSyntax(node)) {
+      if (value.length <= minimum || isConstantInitializer(node) || isStringSyntax(node)) {
         return;
       }
 
-      context.report({ node, messageId: tokens.extract });
+      context.report({ node, messageId: "extract" });
     }
 
     return {
@@ -182,7 +137,7 @@ const noMagicStrings: Rule.RuleModule = {
         }
       },
       JSXText(node: JSSyntaxElement) {
-        const value = property(node, tokens.value);
+        const value = property(node, "value");
 
         if (typeof value === "string" && value.trim().length > 0) {
           inspect(node, value.trim());
@@ -203,7 +158,7 @@ function isRuntimeDeclarationPrefix(statement: unknown): boolean {
   const declarationType = typeOf(declaration);
 
   return (
-    property(declaration, tokens.declare) === true ||
+    property(declaration, "declare") === true ||
     [
       tokens.variableDeclaration,
       tokens.functionDeclaration,
@@ -221,49 +176,52 @@ function isDeclarationPrefix(statement: unknown): boolean {
     type === tokens.importDeclaration ||
     type === tokens.exportAllDeclaration ||
     (type === tokens.exportNamedDeclaration && !property(statement, tokens.declaration)) ||
-    (type === tokens.expressionStatement && typeof property(statement, tokens.directive) === "string") ||
+    (type === tokens.expressionStatement && typeof property(statement, "directive") === "string") ||
     isRuntimeDeclarationPrefix(statement)
   );
 }
 
 const constOnTop: Rule.RuleModule = {
   meta: {
-    type: suggestionType,
-    docs: { description: "Keep constant declarations in the declaration prefix of their scope." },
+    type: "suggestion",
+    docs: { description: "Keep const and let declarations in the declaration prefix of their scope." },
     schema: [],
-    messages: { move: "Declare this constant at the top of its scope, before executable statements." },
+    messages: { move: "Declare this variable at the top of its scope, before executable statements." },
   },
   create(context) {
-    function inspect(node: JSSyntaxElement) {
-      const body = property(node, tokens.body);
-
-      if (!Array.isArray(body)) {
-        return;
-      }
-
+    function inspectBody(body: unknown[]) {
       let hasExecutableStatement = false;
 
       for (const statement of body) {
         const declaration = declarationOf(statement);
+        const kind = property(declaration, "kind");
 
         if (
           hasExecutableStatement &&
           typeOf(declaration) === tokens.variableDeclaration &&
-          property(declaration, tokens.kind) === tokens.const
+          (kind === "const" || kind === "let")
         ) {
-          const location = property(declaration, tokens.loc);
-          const start = property(location, tokens.start);
-          const line = property(start, tokens.line);
-          const column = property(start, tokens.column);
+          const location = property(declaration, "loc");
+          const start = property(location, "start");
+          const line = property(start, "line");
+          const column = property(start, "column");
 
           if (typeof line === "number" && typeof column === "number") {
-            context.report({ loc: { line, column }, messageId: tokens.move });
+            context.report({ loc: { line, column }, messageId: "move" });
           }
         }
 
         if (!isDeclarationPrefix(statement)) {
           hasExecutableStatement = true;
         }
+      }
+    }
+
+    function inspect(node: JSSyntaxElement) {
+      const body = property(node, "body");
+
+      if (Array.isArray(body)) {
+        inspectBody(body);
       }
     }
 

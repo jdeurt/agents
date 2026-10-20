@@ -8,52 +8,38 @@ import { parseRegistry } from "./validation.ts";
 import path from "node:path";
 import { tmpdir } from "node:os";
 import { withResolvedSources } from "./resolve-sources.ts";
-const TEXT = "../";
-const INIT = "init";
-const QUIET = "--quiet";
-const ADD = "add";
-const ALL = "--all";
-const WRITE_TREE = "write-tree";
-const REV_PARSE = "rev-parse";
-const TREE = "^{tree}";
+
 const USER_NAME_GITHUB_ACTIONS_BOT = "user.name=github-actions[bot]";
 const USER_EMAIL_41898282_GITHUB_ACTIONS_BOT_USERS = "user.email=41898282+github-actions[bot]@users.noreply.github.com";
 const COMMIT_TREE = "commit-tree";
 const PUBLISH_MARKETPLACE = "Publish marketplace";
-const FETCH = "fetch";
-const NO_TAGS = "--no-tags";
-const PUSH = "push";
-const ORIGIN = "origin";
-const STATUS = "status";
+
 const PORCELAIN = "--porcelain";
 const PUBLISH_ONLY_A_CLEAN_SOURCE_CHECKOUT = "Publish only a clean source checkout";
-const HEAD_2 = "HEAD";
-const LS_REMOTE = "ls-remote";
+
 const REFS_HEADS_MAIN = "refs/heads/main";
 const PUBLISH_ONLY_CURRENT_ORIGIN_MAIN = "Publish only current origin/main";
 const AGENTS_PUBLISH = "agents-publish-";
 const MARKETPLACE_TOML = "marketplace.toml";
-const UTF8 = "utf8";
-const LS_TREE = "ls-tree";
+
 const NAME_ONLY = "--name-only";
 const PUBLICATION_JSON = ".publication.json";
-const SHOW = "show";
-const README_MD = "README.md";
+
 const VALIDATED_MARKETPLACE_SNAPSHOT_NO_GIT_REFS_CHANGED = "Validated marketplace snapshot; no Git refs changed.";
 const SOURCE_CHANGED_DURING_BUILD_RERUN_PUBLICATION = "Source changed during build; rerun publication";
 const PUBLISHED_MARKETPLACE = "Published marketplace.";
 const MARKETPLACE_UNCHANGED = "Marketplace unchanged.";
-const DRY_RUN = "--dry-run";
+
 const USAGE_PUBLISH_MARKETPLACE_TS_DRY_RUN = "Usage: publish-marketplace.ts [--dry-run]";
 
-const ROOT = fileURLToPath(new URL(TEXT, import.meta.url));
+const ROOT = fileURLToPath(new URL("../", import.meta.url));
 const BRANCH = "refs/heads/marketplace";
 
 function prepareTree(output: string): string {
-  git(output, [INIT, QUIET]);
-  git(output, [ADD, ALL]);
+  git(output, ["init", "--quiet"]);
+  git(output, ["add", "--all"]);
 
-  return git(output, [WRITE_TREE]);
+  return git(output, ["write-tree"]);
 }
 
 function pushTree(root: string, output: string, previous: string, tree: string) {
@@ -70,14 +56,15 @@ function pushTree(root: string, output: string, previous: string, tree: string) 
   ]);
   const lease = `--force-with-lease=${BRANCH}:${previous}`;
   const destination = `${commit}:${BRANCH}`;
-  git(root, [FETCH, NO_TAGS, output, commit]);
-  git(root, [PUSH, lease, ORIGIN, destination]);
+
+  git(root, ["fetch", "--no-tags", output, commit]);
+  git(root, ["push", lease, "origin", destination]);
 }
 
 export function didPublishTree(root: string, output: string, previous: string) {
   const tree = prepareTree(output);
 
-  if (previous && tree === git(root, [REV_PARSE, previous + TREE])) {
+  if (previous && tree === git(root, ["rev-parse", previous + "^{tree}"])) {
     return false;
   }
 
@@ -87,9 +74,9 @@ export function didPublishTree(root: string, output: string, previous: string) {
 }
 
 function validateSourceRevision(root: string, isDryRun: boolean): string {
-  const source = git(root, [REV_PARSE, HEAD_2]);
+  const source = git(root, ["rev-parse", "HEAD"]);
 
-  if (!isDryRun && source !== git(root, [LS_REMOTE, ORIGIN, REFS_HEADS_MAIN]).split(/\s+/, 1)[0]) {
+  if (!isDryRun && source !== git(root, ["ls-remote", "origin", REFS_HEADS_MAIN]).split(/\s+/, 1)[0]) {
     throw new Error(PUBLISH_ONLY_CURRENT_ORIGIN_MAIN);
   }
 
@@ -97,7 +84,7 @@ function validateSourceRevision(root: string, isDryRun: boolean): string {
 }
 
 function validatedSource(root: string, isDryRun: boolean): string {
-  if (!isDryRun && git(root, [STATUS, PORCELAIN])) {
+  if (!isDryRun && git(root, ["status", PORCELAIN])) {
     throw new Error(PUBLISH_ONLY_A_CLEAN_SOURCE_CHECKOUT);
   }
 
@@ -105,10 +92,10 @@ function validatedSource(root: string, isDryRun: boolean): string {
 }
 
 function previousPublication(root: string, isDryRun: boolean): string {
-  const previous = isDryRun ? "" : git(root, [LS_REMOTE, ORIGIN, BRANCH]).split(/\s+/, 1)[0];
+  const previous = isDryRun ? "" : git(root, ["ls-remote", "origin", BRANCH]).split(/\s+/, 1)[0];
 
   if (previous) {
-    git(root, [FETCH, NO_TAGS, ORIGIN, BRANCH]);
+    git(root, ["fetch", "--no-tags", "origin", BRANCH]);
   }
 
   return previous;
@@ -122,12 +109,13 @@ export async function publishMarketplace({ root = ROOT, dryRun = false } = {}) {
 
   async function finishPublication() {
     const stateReference = `${previous}:${PUBLICATION_JSON}`;
-    const registryText = await readFile(path.join(root, MARKETPLACE_TOML), UTF8);
+    const registryText = await readFile(path.join(root, MARKETPLACE_TOML), "utf8");
     const registry = parseRegistry(Bun.TOML.parse(registryText));
-    const hasState = Boolean(previous && git(root, [LS_TREE, NAME_ONLY, previous, PUBLICATION_JSON]));
-    const state = hasState ? releaseStateSchema.parse(JSON.parse(git(root, [SHOW, stateReference]))) : {};
+    const hasState = Boolean(previous && git(root, ["ls-tree", NAME_ONLY, previous, PUBLICATION_JSON]));
+    const state = hasState ? releaseStateSchema.parse(JSON.parse(git(root, ["show", stateReference]))) : {};
+
     await releaseVersions(output, registry, state);
-    await writeFile(path.join(output, README_MD), await readFile(path.join(root, README_MD)));
+    await writeFile(path.join(output, "README.md"), await readFile(path.join(root, "README.md")));
 
     if (dryRun) {
       console.log(VALIDATED_MARKETPLACE_SNAPSHOT_NO_GIT_REFS_CHANGED);
@@ -135,7 +123,7 @@ export async function publishMarketplace({ root = ROOT, dryRun = false } = {}) {
       return;
     }
 
-    if (source !== git(root, [LS_REMOTE, ORIGIN, REFS_HEADS_MAIN]).split(/\s+/, 1)[0]) {
+    if (source !== git(root, ["ls-remote", "origin", REFS_HEADS_MAIN]).split(/\s+/, 1)[0]) {
       throw new Error(SOURCE_CHANGED_DURING_BUILD_RERUN_PUBLICATION);
     }
 
@@ -163,9 +151,9 @@ export async function publishMarketplace({ root = ROOT, dryRun = false } = {}) {
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
-  if (process.argv.slice(2).some((arg) => arg !== DRY_RUN)) {
+  if (process.argv.slice(2).some((arg) => arg !== "--dry-run")) {
     throw new Error(USAGE_PUBLISH_MARKETPLACE_TS_DRY_RUN);
   }
 
-  await publishMarketplace({ dryRun: process.argv.includes(DRY_RUN) });
+  await publishMarketplace({ dryRun: process.argv.includes("--dry-run") });
 }

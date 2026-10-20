@@ -24,21 +24,23 @@ async function compileNativePlugin(plugin: Plugin, source: string, sourceFiles: 
 
   for (const harness of plugin.harnesses) {
     const manifestPath = `.${harness}-plugin/plugin.json`;
-    const isPortable = harness === values.CODEX && sourceFiles.includes(values.PLUGIN_JSON);
+    const isPortable = harness === "codex" && sourceFiles.includes(values.PLUGIN_JSON);
     const selected = isPortable ? values.PLUGIN_JSON : manifestPath;
-    await readFile(path.join(source, selected), values.UTF8);
+
+    await readFile(path.join(source, selected), "utf8");
 
     for (const file of sourceFiles) {
       const target = `dist/${harness}/plugins/${plugin.name}/${file}`;
+
       let contents = await readFile(path.join(source, file));
 
       if (file === selected || file === manifestPath) {
         const manifest = parseJsonRecord(contents.toString());
-        const text2 = `jdeurt-${plugin.name}`;
+
         contents = Buffer.from(
           json({
             ...manifest,
-            name: text2,
+            name: `jdeurt-${plugin.name}`,
             version: plugin.version,
           })
         );
@@ -72,6 +74,7 @@ function requireHarnessOutput(outputs: HarnessOutput[], harness: string, pluginN
 
   if (!output) {
     const message = `${pluginName}: missing ${harness} output`;
+
     throw new Error(message);
   }
 
@@ -92,44 +95,41 @@ function collectCompiledFiles(
     const manifestPath = `.${harness}-plugin/plugin.json`;
 
     if (output.files.every((file) => file.path !== manifestPath)) {
-      const message6 = `${plugin.name}: missing ${harness} manifest`;
-      throw new Error(message6);
+      const missingManifestMessage = `${plugin.name}: missing ${harness} manifest`;
+
+      throw new Error(missingManifestMessage);
     }
 
     for (const file of applyInvocationPolicies(output, harness, skills)) {
       const target = `${base}/${file.path}`;
+
+      let contents: Buffer;
+
       inside(root, file.path);
-      let contents = Buffer.from(file.contents);
+      contents = Buffer.from(file.contents);
 
       if (file.path === manifestPath) {
         const manifest = parseJsonRecord(contents.toString());
-        const text4 = `jdeurt-${plugin.name}`;
+
         contents = Buffer.from(
           json({
             ...manifest,
-            name: text4,
+            name: `jdeurt-${plugin.name}`,
             version: plugin.version,
             ...(plugin.license && { license: plugin.license }),
           })
         );
       }
 
-      if (harness === values.CODEX && file.path === values.MCP_JSON) {
+      if (harness === "codex" && file.path === ".mcp.json") {
         const servers = z.record(z.string(), jsonRecord).parse(JSON.parse(contents.toString()));
 
         // Soubi 0.0.1 drops cwd for Codex; native plugins resolve it against their installed root.
         const sourceServers = Object.entries(plugin.soubi?.mcpServers ?? {});
 
         for (const [name, server] of sourceServers) {
-          const cwd: unknown = Reflect.get(server, values.CWD);
-
-          if (
-            typeof cwd === "string" &&
-            cwd &&
-            Reflect.has(server, values.COMMAND) &&
-            Reflect.get(server, values.COMMAND)
-          ) {
-            servers[name].cwd = cwd.replaceAll(values.PLUGIN_ROOT_2, ".");
+          if ("command" in server && server.command && server.cwd) {
+            servers[name].cwd = server.cwd.replaceAll(values.PLUGIN_ROOT_2, ".");
           }
         }
 
@@ -137,8 +137,9 @@ function collectCompiledFiles(
       }
 
       if (files.has(target)) {
-        const message7 = `Duplicate generated file: ${target}`;
-        throw new Error(message7);
+        const duplicateFileMessage = `Duplicate generated file: ${target}`;
+
+        throw new Error(duplicateFileMessage);
       }
 
       files.set(target, { contents, mode: file.executable ? EXECUTABLE_MODE : REGULAR_MODE });
@@ -154,6 +155,7 @@ async function collectSkill(
   skills: Map<string, Awaited<ReturnType<typeof validateSkillFrontmatter>>>
 ) {
   const metadata = await validateSkillFrontmatter(path.join(source, file));
+
   skills.set(metadata.name, metadata);
 }
 
@@ -170,13 +172,14 @@ async function compileProjectFiles(
   const issues = [
     ...result.failures,
     ...result.warnings.filter(
-      (issue) => !(issue.harness === values.CODEX && issue.message === values.CODEX_AGENT_SKILLS_DO_NOT_SUPPORT_AN)
+      (issue) => !(issue.harness === "codex" && issue.message === values.CODEX_AGENT_SKILLS_DO_NOT_SUPPORT_AN)
     ),
   ];
 
   if (issues.length > 0 || result.outputs.some((output) => output.excluded)) {
-    const message10 = `${plugin.name}: Soubi compilation lost or changed behavior\n`;
-    throw new Error(message10 + issues.map((issue) => `${issue.harness}: ${issue.message}`).join("\n"));
+    const compilationFailureMessage = `${plugin.name}: Soubi compilation lost or changed behavior\n`;
+
+    throw new Error(compilationFailureMessage + issues.map((issue) => `${issue.harness}: ${issue.message}`).join("\n"));
   }
 
   return collectCompiledFiles(root, plugin, result.outputs, skills);
@@ -201,19 +204,20 @@ async function compileStagedPlugin(
         harness,
         {
           ...plugin.soubi?.harnessDefaults?.[harness],
-          onUnsupported: values.FAIL,
+          onUnsupported: "fail",
         },
       ])
     ),
   };
   const text5 = `export default ${json(config)}`;
+
   await writeFile(path.join(project, values.PLUGIN_CONFIG_TS), text5);
 
   return compileProjectFiles(root, plugin, project, skills);
 }
 
 async function compileSourcePlugin(root: string, plugin: Plugin, owner: string, staging: string, source: string) {
-  const pluginsRoot = path.join(root, values.PLUGINS);
+  const pluginsRoot = path.join(root, "plugins");
   const shouldInclude = marketplaceSourceFilter(pluginsRoot);
   const sourceFiles = await filesIn(source, "", pluginsRoot, new Set(), shouldInclude);
   const skills = new Map<string, Awaited<ReturnType<typeof validateSkillFrontmatter>>>();
@@ -224,7 +228,7 @@ async function compileSourcePlugin(root: string, plugin: Plugin, owner: string, 
   }
 
   for (const file of sourceFiles) {
-    if (path.basename(file) !== values.SKILL_MD) {
+    if (path.basename(file) !== "SKILL.md") {
       continue;
     }
 
@@ -232,8 +236,9 @@ async function compileSourcePlugin(root: string, plugin: Plugin, owner: string, 
   }
 
   if (sourceFiles.some((file) => /^plugin\.config\.[^/]+$/.test(file))) {
-    const message9 = `${plugin.name}: define Soubi configuration in marketplace.toml`;
-    throw new Error(message9);
+    const configurationLocationMessage = `${plugin.name}: define Soubi configuration in marketplace.toml`;
+
+    throw new Error(configurationLocationMessage);
   }
 
   await cp(source, project, { recursive: true, dereference: true, filter: shouldInclude });
@@ -244,14 +249,14 @@ async function compileSourcePlugin(root: string, plugin: Plugin, owner: string, 
 }
 
 export async function compilePlugin(root: string, plugin: Plugin, owner: string, staging: string) {
-  const relative = `plugins/${plugin.name}`;
-  const source = inside(root, relative);
+  const source = inside(root, `plugins/${plugin.name}`);
   const resolved = await realpath(source);
   const resolvedValue1 = await stat(source);
 
   if (resolved !== source || !resolvedValue1.isDirectory()) {
-    const message8 = `Invalid plugin source: ${source}`;
-    throw new Error(message8);
+    const invalidSourceMessage = `Invalid plugin source: ${source}`;
+
+    throw new Error(invalidSourceMessage);
   }
 
   return compileSourcePlugin(root, plugin, owner, staging, source);

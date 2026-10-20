@@ -5,39 +5,28 @@ import { readFile, writeFile } from "./io.ts";
 import type { ExternalImport } from "./types.ts";
 import { inside } from "./sync-imports.ts";
 import path from "node:path";
-const ALL = "all";
+
 const SCRIPTS_MUST_BE_ALL_OR_A_LIST = "scripts must be all or a list of relative paths";
-const HOOKS = "hooks";
-const LOCAL_MCP = "local_mcp";
-const NAME = "name";
-const KIND = "kind";
-const REPOSITORY = "repository";
-const REF = "ref";
-const PATH = "path";
+
 const DESTINATION = "destination";
-const LICENSE = "license";
-const SCRIPTS = "scripts";
+
 const UNKNOWN_IMPORT_FIELD = "Unknown import field";
 const INVALID_OR_DUPLICATE_IMPORT_NAME = "Invalid or duplicate import name";
 const IMPORTS_REQUIRE_A_GITHUB_HTTPS_REPOSITORY = "Imports require a GitHub HTTPS repository";
 const INVALID_IMPORT_REF = "Invalid import ref";
-const SKILL = "skill";
-const PLUGIN = "plugin";
+
 const INVALID_IMPORT_KIND_OR_DESTINATION = "Invalid import kind or destination";
 const OVERLAPPING_IMPORT_DESTINATIONS = "Overlapping import destinations";
 const IMPORTS_TOML = "imports.toml";
-const UTF8 = "utf8";
-const IMPORTS = "imports";
+
 const IMPORTS_TOML_MUST_CONTAIN_AN_IMPORTS_ARRAY = "imports.toml must contain an imports array";
-const IMPORT = ".import";
-const CODE = "code";
-const FILE_NOT_FOUND = "ENOENT";
+
 const PLUGINS_IMPORT = "plugins/**/*.import";
 
 function validateExecutionPolicy(root: string, entry: ExternalImport) {
   if (
     entry.scripts !== undefined &&
-    entry.scripts !== ALL &&
+    entry.scripts !== "all" &&
     (!Array.isArray(entry.scripts) || entry.scripts.some((file) => typeof file !== "string"))
   ) {
     throw new Error(SCRIPTS_MUST_BE_ALL_OR_A_LIST);
@@ -49,9 +38,10 @@ function validateExecutionPolicy(root: string, entry: ExternalImport) {
     }
   }
 
-  for (const key of [HOOKS, LOCAL_MCP] as const) {
+  for (const key of ["hooks", "local_mcp"] as const) {
     if (entry[key] !== undefined && typeof entry[key] !== "boolean") {
       const message = `${key} must be a boolean`;
+
       throw new Error(message);
     }
   }
@@ -59,8 +49,8 @@ function validateExecutionPolicy(root: string, entry: ExternalImport) {
 
 function validateImportDestination(entry: ExternalImport) {
   const patterns = new Map<unknown, RegExp>([
-    [SKILL, /^plugins\/[a-z0-9-]+\/skills\/[a-z0-9-]+$/],
-    [PLUGIN, /^plugins\/[a-z0-9-]+$/],
+    ["skill", /^plugins\/[a-z0-9-]+\/skills\/[a-z0-9-]+$/],
+    ["plugin", /^plugins\/[a-z0-9-]+$/],
   ]);
   const pattern = patterns.get(entry.kind);
 
@@ -72,7 +62,19 @@ function validateImportDestination(entry: ExternalImport) {
 function validateImportEntry(root: string, entry: ExternalImport, names: Set<string>, destinations: string[]) {
   if (
     Object.keys(entry).some(
-      (key) => ![NAME, KIND, REPOSITORY, REF, PATH, DESTINATION, LICENSE, SCRIPTS, HOOKS, LOCAL_MCP].includes(key)
+      (key) =>
+        ![
+          "name",
+          "kind",
+          "repository",
+          "ref",
+          "path",
+          DESTINATION,
+          "license",
+          "scripts",
+          "hooks",
+          "local_mcp",
+        ].includes(key)
     )
   ) {
     throw new Error(UNKNOWN_IMPORT_FIELD);
@@ -130,10 +132,10 @@ function parseImportEntries(root: string, value: unknown): ExternalImport[] {
 }
 
 export async function readImports(root: string): Promise<ExternalImport[]> {
-  const configSource = await readFile(path.join(root, IMPORTS_TOML), UTF8);
+  const configSource = await readFile(path.join(root, IMPORTS_TOML), "utf8");
   const config = jsonRecord.parse(Bun.TOML.parse(configSource));
 
-  if (Object.keys(config).some((key) => key !== IMPORTS) || !Array.isArray(config.imports)) {
+  if (Object.keys(config).some((key) => key !== "imports") || !Array.isArray(config.imports)) {
     throw new Error(IMPORTS_TOML_MUST_CONTAIN_AN_IMPORTS_ARRAY);
   }
 
@@ -147,7 +149,7 @@ function markerContentsError(entry: ExternalImport) {
 }
 
 async function validateMarkerContents(marker: string, entry: ExternalImport) {
-  const markerText = await readFile(marker, UTF8);
+  const markerText = await readFile(marker, "utf8");
 
   if (markerText.trim() === entry.name) {
     return;
@@ -157,13 +159,14 @@ async function validateMarkerContents(marker: string, entry: ExternalImport) {
 }
 
 async function validateDeclaredMarkers(root: string, entries: ExternalImport[]) {
-  const declared = new Set(entries.map((entry) => entry.destination + IMPORT));
+  const declared = new Set(entries.map((entry) => entry.destination + ".import"));
 
   const markers = new Bun.Glob(PLUGINS_IMPORT).scan({ cwd: root, dot: true });
 
   for await (const marker of markers) {
     if (!declared.has(marker)) {
       const message = `Undeclared import marker: ${marker}`;
+
       throw new Error(message);
     }
   }
@@ -172,11 +175,12 @@ async function validateDeclaredMarkers(root: string, entries: ExternalImport[]) 
 export async function validateMarkers(root: string, entries: ExternalImport[]) {
   for (const entry of entries) {
     const target = inside(root, entry.destination);
-    const marker = target + IMPORT;
+    const marker = target + ".import";
     const markerInfo = await lstat(marker);
 
     if ((await realpath(marker)) !== marker || !markerInfo.isFile()) {
       const message = `Invalid import marker: ${entry.destination}.import`;
+
       throw new Error(message);
     }
 
@@ -184,10 +188,11 @@ export async function validateMarkers(root: string, entries: ExternalImport[]) {
 
     try {
       const message = `Import destination must be absent on main: ${entry.destination}`;
+
       await lstat(target);
       throw new Error(message);
     } catch (error) {
-      if (!(error instanceof Error && Reflect.get(error, CODE) === FILE_NOT_FOUND)) {
+      if (!(error instanceof Error && Reflect.get(error, "code") === "ENOENT")) {
         throw error;
       }
     }
@@ -199,8 +204,10 @@ export async function validateMarkers(root: string, entries: ExternalImport[]) {
 export async function saveImports(root: string, imports: ExternalImport[]) {
   await writeFile(path.join(root, IMPORTS_TOML), Bun.TOML.stringify({ imports }));
 }
+
 export async function writeMarker(root: string, entry: ExternalImport) {
-  const marker = inside(root, entry.destination) + IMPORT;
+  const marker = inside(root, entry.destination) + ".import";
+
   await mkdir(path.dirname(marker), { recursive: true });
   await writeFile(marker, entry.name + "\n");
 }

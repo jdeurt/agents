@@ -1,4 +1,3 @@
-import * as values from "./build-files-values.ts";
 import { lstat, readdir, realpath, rmdir, stat } from "node:fs/promises";
 import type { Dirent } from "node:fs";
 import path from "node:path";
@@ -20,6 +19,7 @@ export function marketplaceSourceFilter(pluginsRoot: string) {
 function requireSafeRelative(relative: string) {
   if (typeof relative !== "string" || path.isAbsolute(relative) || relative.split(/[\\/]/).includes("..")) {
     const message = `Unsafe generated path: ${relative}`;
+
     throw new Error(message);
   }
 
@@ -31,6 +31,7 @@ export function inside(root: string, relative: string) {
 
   if (resolved === root || !resolved.startsWith(`${root}${path.sep}`)) {
     const message = `Unsafe generated path: ${relative}`;
+
     throw new Error(message);
   }
 
@@ -41,8 +42,9 @@ async function checkedDirectoryPath(directory: string, linksWithin: string | und
   const info = await lstat(directory);
 
   if (!linksWithin && info.isSymbolicLink()) {
-    const message6 = `Symbolic links are not supported: ${directory}`;
-    throw new Error(message6);
+    const symbolicLinkMessage = `Symbolic links are not supported: ${directory}`;
+
+    throw new Error(symbolicLinkMessage);
   }
 
   return realpath(directory);
@@ -52,13 +54,15 @@ async function readDirectory(directory: string, linksWithin: string | undefined,
   const resolved = await checkedDirectoryPath(directory, linksWithin);
 
   if (linksWithin && resolved !== linksWithin && !resolved.startsWith(`${linksWithin}${path.sep}`)) {
-    const message7 = `Source resource leaves the plugin sources: ${directory}`;
-    throw new Error(message7);
+    const sourceEscapeMessage = `Source resource leaves the plugin sources: ${directory}`;
+
+    throw new Error(sourceEscapeMessage);
   }
 
   if (parents.has(resolved)) {
-    const message8 = `Source resources contain a symlink cycle: ${directory}`;
-    throw new Error(message8);
+    const symlinkCycleMessage = `Source resources contain a symlink cycle: ${directory}`;
+
+    throw new Error(symlinkCycleMessage);
   }
 
   return { entries: await readdir(directory, { withFileTypes: true }), parents: new Set([...parents, resolved]) };
@@ -69,6 +73,7 @@ async function containedLinkPath(filename: string, linksWithin: string) {
 
   if (!resolved.startsWith(`${linksWithin}${path.sep}`)) {
     const message = `Source resource leaves the plugin sources: ${filename}`;
+
     throw new Error(message);
   }
 
@@ -78,6 +83,7 @@ async function containedLinkPath(filename: string, linksWithin: string) {
 async function checkedLinkPath(filename: string, linksWithin: string | undefined) {
   if (!linksWithin) {
     const message = `Symbolic links are not supported: ${filename}`;
+
     throw new Error(message);
   }
 
@@ -102,14 +108,7 @@ export async function filesIn(
 
     const entries = scanned.entries.toSorted((a, b) => a.name.localeCompare(b.name));
 
-    for (const entry of entries) {
-      const relative = path.posix.join(scanPrefix, entry.name);
-      const filename = path.join(scanDirectory, entry.name);
-
-      if (scanShouldInclude && !(await scanShouldInclude(filename))) {
-        continue;
-      }
-
+    async function appendIncludedEntry(entry: Dirent, filename: string, relative: string) {
       let info: Pick<typeof entry, "isDirectory" | "isFile"> = entry;
 
       if (entry.isSymbolicLink()) {
@@ -125,6 +124,17 @@ export async function filesIn(
       }
     }
 
+    for (const entry of entries) {
+      const relative = path.posix.join(scanPrefix, entry.name);
+      const filename = path.join(scanDirectory, entry.name);
+
+      if (scanShouldInclude && !(await scanShouldInclude(filename))) {
+        continue;
+      }
+
+      await appendIncludedEntry(entry, filename, relative);
+    }
+
     return files;
   }
 
@@ -133,11 +143,7 @@ export async function filesIn(
   try {
     scanned = await readDirectory(directory, linksWithin, parents);
   } catch (error) {
-    if (
-      error instanceof Error &&
-      Reflect.has(error, values.CODE) &&
-      Reflect.get(error, values.CODE) === values.FILE_NOT_FOUND
-    ) {
+    if (error instanceof Error && "code" in error && error.code === "ENOENT") {
       return [];
     }
 
@@ -168,11 +174,7 @@ export async function checkOutputParents(root: string, relative: string) {
     try {
       await requireNonSymlink(directory);
     } catch (error) {
-      if (!(
-        error instanceof Error &&
-        Reflect.has(error, values.CODE) &&
-        Reflect.get(error, values.CODE) === values.FILE_NOT_FOUND
-      )) {
+      if (!(error instanceof Error && "code" in error && error.code === "ENOENT")) {
         throw error;
       }
     }
@@ -195,11 +197,7 @@ export async function pruneEmptyDirectories(directory: string): Promise<void> {
   try {
     entries = await readdir(directory, { withFileTypes: true });
   } catch (error) {
-    if (
-      error instanceof Error &&
-      Reflect.has(error, values.CODE) &&
-      Reflect.get(error, values.CODE) === values.FILE_NOT_FOUND
-    ) {
+    if (error instanceof Error && "code" in error && error.code === "ENOENT") {
       return;
     }
 
@@ -208,8 +206,9 @@ export async function pruneEmptyDirectories(directory: string): Promise<void> {
 
   for (const entry of entries) {
     if (entry.isSymbolicLink()) {
-      const message12 = `Symbolic links are not supported: ${path.join(directory, entry.name)}`;
-      throw new Error(message12);
+      const symbolicLinkMessage = `Symbolic links are not supported: ${path.join(directory, entry.name)}`;
+
+      throw new Error(symbolicLinkMessage);
     }
 
     if (entry.isDirectory()) {

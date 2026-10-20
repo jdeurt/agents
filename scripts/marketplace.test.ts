@@ -44,11 +44,6 @@ const files = {
   codeReview: "skills/code-review/SKILL.md",
   jscpdReference: "skills/code-review/references/jscpd.md",
   stale: "dist/stale.txt",
-  hashDirectory: "skill",
-  hashSkill: "SKILL.md",
-  escape: "escape",
-  outside: "../outside",
-  safe: "/safe",
 };
 const harnesses = ["codex", "claude"] as const;
 const importedSkills = ["jscpd", "dry-refactoring", "codebase-refactoring", "compare-codebases", "code-migration"];
@@ -78,11 +73,13 @@ async function assertImportedSkills(output: string) {
   for (const host of harnesses) {
     const baseName = `dist/${host}/plugins/engineering`;
     const base = path.join(output, baseName);
+
     await readFile(path.join(base, files.codeReview));
     await readFile(path.join(base, files.jscpdReference));
 
     for (const name of importedSkills) {
       const imported = `skills/${name}/SKILL.md`;
+
       await readFile(path.join(base, imported));
     }
   }
@@ -126,6 +123,7 @@ async function assertBundledConfiguration(output: string) {
     for (const host of harnesses) {
       const bundled = `dist/${host}/plugins/engineering/skills/formatting-linting/references/javascript/${name}`;
       const published = await readFile(path.join(output, bundled), names.utf8);
+
       assert.equal(published, source);
     }
   }
@@ -182,26 +180,26 @@ test(
 async function assertContentHash(root: string) {
   const before = await digest(root);
 
-  await writeFile(path.join(root, files.hashSkill), names.changed);
+  await writeFile(path.join(root, "SKILL.md"), names.changed);
   assert.notEqual(await digest(root), before);
-  await symlink(files.outside, path.join(root, files.escape));
+  await symlink("../outside", path.join(root, "escape"));
   await assert.rejects(digest(root), /symlink/);
 }
 
 function assertImportBoundaries() {
   for (const value of invalidImports) {
-    assert.throws(() => inside(files.safe, value));
+    assert.throws(() => inside("/safe", value));
   }
 }
 
 test(names.hashTest, async () => {
   const root = await mkdtemp(path.join(tmpdir(), names.hashPrefix));
-  const skillDirectory = path.join(root, files.hashDirectory);
+  const skillDirectory = path.join(root, "skill");
 
   try {
     assertImportBoundaries();
     await mkdir(skillDirectory);
-    await writeFile(path.join(skillDirectory, files.hashSkill), names.original);
+    await writeFile(path.join(skillDirectory, "SKILL.md"), names.original);
     await assertContentHash(skillDirectory);
   } finally {
     await rm(root, { recursive: true, force: true });

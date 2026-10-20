@@ -7,6 +7,7 @@ export async function readFile(file: string | URL, encoding?: "utf8"): Promise<s
 
   return encoding ? source.text() : Buffer.from(await source.arrayBuffer());
 }
+
 export async function writeFile(file: string | URL, data: string | Uint8Array, options?: { mode: number }) {
   await Bun.write(file, data);
 

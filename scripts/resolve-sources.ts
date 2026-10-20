@@ -2,7 +2,7 @@ import { cp, mkdtemp, realpath, rm } from "node:fs/promises";
 import path from "node:path";
 import { syncImports } from "./sync-imports.ts";
 import { tmpdir } from "node:os";
-const PLUGINS = "plugins";
+
 const ESLINT_CONFIG_TS = "eslint.config.ts";
 const PRETTIER_CONFIG_MJS = "prettier.config.mjs";
 const ESLINT_RULES_TS = "eslint-rules.ts";
@@ -12,7 +12,7 @@ const AGENTS_SOURCES = "agents-sources-";
 
 async function copySources(root: string, resolved: string) {
   for (const item of [
-    PLUGINS,
+    "plugins",
     ESLINT_CONFIG_TS,
     PRETTIER_CONFIG_MJS,
     ESLINT_RULES_TS,

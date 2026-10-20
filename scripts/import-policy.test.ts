@@ -7,12 +7,13 @@ import assert from "node:assert/strict";
 import path from "node:path";
 import { test } from "bun:test";
 import { tmpdir } from "node:os";
+
 const IMPORT_POLICY_REMOVES_UNAPPROVED_CODE_AND_EXECUTABLE =
   "import policy removes unapproved code and executable integrations and explains omissions";
 const AGENTS_POLICY_TEST = "agents-policy-test-";
-const SCRIPTS = "scripts";
+
 const CODEX_PLUGIN = ".codex-plugin";
-const SKILL_MD = "SKILL.md";
+
 const NAME_TEST_DESCRIPTION_TEST_RUN_SCRIPTS_OMITTED =
   "---\nname: test\ndescription: Test.\n---\nRun scripts/omitted.py.\n";
 const SCRIPTS_ALLOWED_TS = "scripts/allowed.ts";
@@ -20,31 +21,29 @@ const CONSOLE_LOG_ALLOWED = "console.log('allowed');\n";
 const SCRIPTS_OMITTED_PY = "scripts/omitted.py";
 const PRINT_OMITTED = "print('omitted')\n";
 const CODEX_PLUGIN_PLUGIN_JSON = ".codex-plugin/plugin.json";
-const TEST = "test";
-const ECHO_HI = "echo hi";
+
 const CONFIG_MCP_JSON = "./config/mcp.json";
-const MCP_JSON = ".mcp.json";
+
 const HTTPS_EXAMPLE_COM_MCP = "https://example.com/mcp";
-const BUN = "bun";
-const SERVER_TS = "server.ts";
-const UTF8 = "utf8";
+
 const PRINT_OPT_IN = "print('opt in')\n";
-const ALL = "all";
 
 async function assertRestrictedManifest(directory: string) {
-  const manifestContents = await readFile(path.join(directory, CODEX_PLUGIN_PLUGIN_JSON), UTF8);
+  const manifestContents = await readFile(path.join(directory, CODEX_PLUGIN_PLUGIN_JSON), "utf8");
   const manifest = z
     .looseObject({ hooks: z.optional(z.unknown()), mcpServers: z.optional(z.unknown()) })
     .parse(JSON.parse(manifestContents));
+
   assert.equal(manifest.hooks, undefined);
   assert.equal(manifest.mcpServers, undefined);
 }
 
 async function assertRestrictedMcp(directory: string) {
-  const mcpContents = await readFile(path.join(directory, MCP_JSON), UTF8);
+  const mcpContents = await readFile(path.join(directory, ".mcp.json"), "utf8");
   const mcp = z
     .looseObject({ local: z.optional(z.unknown()), remote: z.object({ url: z.string() }) })
     .parse(JSON.parse(mcpContents));
+
   assert.equal(mcp.local, undefined);
   assert.equal(mcp.remote.url, HTTPS_EXAMPLE_COM_MCP);
 }
@@ -62,36 +61,36 @@ test(IMPORT_POLICY_REMOVES_UNAPPROVED_CODE_AND_EXECUTABLE, async () => {
   };
 
   try {
-    await mkdir(path.join(directory, SCRIPTS));
+    await mkdir(path.join(directory, "scripts"));
     await mkdir(path.join(directory, CODEX_PLUGIN));
-    await writeFile(path.join(directory, SKILL_MD), NAME_TEST_DESCRIPTION_TEST_RUN_SCRIPTS_OMITTED);
+    await writeFile(path.join(directory, "SKILL.md"), NAME_TEST_DESCRIPTION_TEST_RUN_SCRIPTS_OMITTED);
     await writeFile(path.join(directory, SCRIPTS_ALLOWED_TS), CONSOLE_LOG_ALLOWED);
     await writeFile(path.join(directory, SCRIPTS_OMITTED_PY), PRINT_OMITTED);
     await writeFile(
       path.join(directory, CODEX_PLUGIN_PLUGIN_JSON),
       JSON.stringify({
-        name: TEST,
-        hooks: { SessionStart: [{ command: ECHO_HI }] },
+        name: "test",
+        hooks: { SessionStart: [{ command: "echo hi" }] },
         mcpServers: [CONFIG_MCP_JSON],
       })
     );
     await writeFile(
-      path.join(directory, MCP_JSON),
+      path.join(directory, ".mcp.json"),
       JSON.stringify({
         remote: { url: HTTPS_EXAMPLE_COM_MCP },
-        local: { command: BUN, args: [SERVER_TS] },
+        local: { command: "bun", args: ["server.ts"] },
       })
     );
     await applyImportPolicy(directory, entry);
     assert.equal(await Bun.file(path.join(directory, SCRIPTS_ALLOWED_TS)).exists(), true);
     assert.equal(await Bun.file(path.join(directory, SCRIPTS_OMITTED_PY)).exists(), false);
-    assert.match(await readFile(path.join(directory, SKILL_MD), UTF8), /Do not download, install, recreate/);
+    assert.match(await readFile(path.join(directory, "SKILL.md"), "utf8"), /Do not download, install, recreate/);
     await assertRestrictedManifest(directory);
     await assertRestrictedMcp(directory);
     await writeFile(path.join(directory, SCRIPTS_OMITTED_PY), PRINT_OPT_IN);
     await applyImportPolicy(directory, {
       ...entry,
-      scripts: ALL,
+      scripts: "all",
       hooks: true,
       local_mcp: true,
     });
