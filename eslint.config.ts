@@ -157,7 +157,6 @@ export function createConfig(options: { typed?: boolean; tsconfigRootDir?: strin
         "no-shadow": "warn",
         "no-var": "error",
         "prefer-const": "warn",
-        "sort-imports": "warn",
         "unicorn/no-repeated-call-wrappers": "warn",
         "unicorn/try-complexity": "warn",
         "unicorn/no-array-reduce": "off",
