@@ -9,14 +9,7 @@ Copy authored packaging inputs into a temporary source tree.
 @param resolved - Temporary destination for the copied inputs.
 */
 async function copySources(root: string, resolved: string) {
-  for (const item of [
-    "plugins",
-    "eslint.config.ts",
-    "prettier.config.mjs",
-    "eslint-rules.ts",
-    "marketplace.toml",
-    "imports.toml",
-  ]) {
+  for (const item of ["plugins", "eslint.config.ts", "prettier.config.mjs", "marketplace.toml", "imports.toml"]) {
     await cp(path.join(root, item), path.join(resolved, item), {
       recursive: true,
     });

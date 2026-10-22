@@ -115,10 +115,10 @@ const total=subtotal+tax;return total;
 Consecutive imports may remain together.
 Put a blank line after the final import before any other statement.
 
-Keep consecutive declarations of the same kind together. A group contains consecutive constant declarations or consecutive mutable declarations.
-Separate unrelated groups when their purposes differ.
-Put a blank line between constant and mutable declaration groups.
-Put a blank line after the final declaration before executable code.
+Keep adjacent declarations of the same kind together when they serve one purpose.
+Separate unrelated declarations when their purposes differ.
+Put a blank line between adjacent constant and mutable declarations.
+Put a blank line between a declaration and following executable code.
 
 Put blank lines between class methods.
 Put blank lines around class declarations.
@@ -132,7 +132,7 @@ Adapt declaration spacing to the language.
 **Why:**
 
 Blank lines distinguish dependencies, declarations, actions, and results.
-Same-kind declaration groups expose initialization together, while group boundaries reveal changes in purpose or mutability.
+Declaration spacing distinguishes changes in purpose or mutability.
 Method, class, and control-flow spacing makes independent structural boundaries visible.
 Keeping related arms and clauses together preserves the outline of one construct.
 
@@ -387,51 +387,24 @@ publishReport("reports/summary.json");
 
 ### 2B. Keep declarations in the right scope
 
-Keep constant and mutable declarations in the declaration prefix of their scope.
-Keep runtime declarations of each kind in one group. Either kind may come first, but do not return to that kind after switching.
-Ambient declarations do not select a runtime group. Each nested scope has its own groups.
-Initializers can execute work during declaration. Preserve their timing when you reorganize declarations.
-Apply the separate spacing requirements in 1C. Declaration order does not depend on whitespace.
-Imports, types, functions, and other variable declarations may precede these declarations.
-Loop-header declarations may remain in the loop header.
-
 Use the smallest scope that owns a value.
 Move independent functions to an outer scope.
 Preserve evaluation order.
-Use a conditional or named helper for work that must wait for a condition.
-Do not add standalone blocks to relocate declarations.
+Declare values when their inputs are ready, including inside a condition or loop when that scope owns them.
 Keep a closure nested when it needs surrounding local state.
-
 Use helpers for cohesive business operations.
-Extract cohesive work when required to meet declaration placement while preserving execution timing.
+Apply the spacing requirements in 1C to adjacent declarations and statements.
 
 **Why:**
 
-A declaration prefix exposes a scope's inputs and local state before its actions.
-Separate declaration groups make transitions between constant and mutable bindings easy to find.
-Blank lines distinguish initialization from later execution.
-Other declarations can establish dependencies without starting that scope's main actions.
-Loop-header declarations keep iteration state within its natural lifetime.
-Initializers may perform work, so moving them can change failures, logging, or access to resources.
-
 Small owning scopes limit accidental access.
 Independent functions need no repeated closure, while dependent closures need their captured state.
-Conditions and cohesive helpers preserve delayed execution without adding arbitrary blocks.
-Extraction can preserve initializer timing while satisfying the declaration prefix. It adds navigation, an accepted cost of this placement convention.
+Declaring a value when its inputs are ready keeps its lifetime clear. Initializers may perform work, so moving them can change failures, logging, or access to resources.
 Preserving evaluation order prevents a layout change from changing behavior.
 
 **Good:**
 
 ```ts
-/**
-Read the current report and send it to publication.
-*/
-function readAndPublishReport() {
-  const report = readReport();
-
-  publish(report);
-}
-
 /**
 Publish the current report only when its inputs are ready.
 Record the publication start before reading the report.
@@ -443,21 +416,8 @@ function publishReportIfReady(isReady: boolean) {
   }
 
   logStart();
-  readAndPublishReport();
-}
-```
-
-**Bad:**
-
-```text
-// Log before reading and publishing, and do not read when isReady is false.
-function publishReportIfReady(isReady: boolean) {
-  if (!isReady) {
-    return;
-  }
-
-  logStart();
   const report = readReport();
+
   publish(report);
 }
 ```

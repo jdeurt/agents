@@ -27,7 +27,7 @@ Copy the shared JavaScript lint and formatting files into skill references.
 async function copyJavascriptPolicy(root: string, references: string) {
   await mkdir(references, { recursive: true });
 
-  for (const file of ["eslint.config.ts", "prettier.config.mjs", "eslint-rules.ts"]) {
+  for (const file of ["eslint.config.ts", "prettier.config.mjs"]) {
     await cp(path.join(root, file), path.join(references, file));
   }
 }

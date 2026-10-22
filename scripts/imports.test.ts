@@ -29,14 +29,7 @@ Copy authored import and packaging inputs into a test repository.
 @param root - Temporary repository receiving the copied source inputs.
 */
 async function copyImportSources(root: string) {
-  for (const item of [
-    "plugins",
-    "eslint.config.ts",
-    "eslint-rules.ts",
-    "prettier.config.mjs",
-    "marketplace.toml",
-    IMPORTS_TOML,
-  ]) {
+  for (const item of ["plugins", "eslint.config.ts", "prettier.config.mjs", "marketplace.toml", IMPORTS_TOML]) {
     await cp(path.join(source, item), path.join(root, item), {
       recursive: true,
     });
