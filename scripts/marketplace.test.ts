@@ -28,7 +28,7 @@ const files = {
 const harnesses = ["codex", "claude"] as const;
 const importedSkills = ["jscpd", "dry-refactoring", "codebase-refactoring", "compare-codebases", "code-migration"];
 const pluginNames = ["jdeurt-design", "jdeurt-engineering", "jdeurt-writing", "jdeurt-meta", "jdeurt-cloudflare"];
-const configFiles = ["eslint.config.ts", "prettier.config.mjs", "eslint-rules.ts"];
+const configFiles = ["eslint.config.ts", "prettier.config.mjs"];
 const invalidImports = ["../outside", "/absolute", ".git/config"];
 const portablePluginSchema = z.object({
   name: z.string(),

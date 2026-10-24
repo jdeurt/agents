@@ -11,7 +11,7 @@ Use Node-compatible filesystem APIs when Bun lacks suitable directory, symlink, 
 Keep dependencies only for behavior unavailable in Bun.
 Explain the need before adding a dependency.
 
-Use the root `eslint.config.ts`, `prettier.config.mjs`, and `eslint-rules.ts`.
+Use the root `eslint.config.ts` and `prettier.config.mjs`.
 Fix violations without weakening rules.
 Keep lint errors and warnings at zero.
 Keep linted code files within 350 lines, including comments and blank lines.
@@ -61,7 +61,7 @@ Use Soubi for authored client packages.
 Preserve native imports for their supported clients.
 Generate MCP configuration from the packaging registry.
 
-The build bundles the root lint files in Engineering's Formatting and Linting skill.
+The build bundles the root lint configuration and formatter configuration in Engineering's Formatting and Linting skill.
 
 ## Writing
 

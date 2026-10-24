@@ -80,7 +80,7 @@ See [desktop-only restrictions](https://learn.chatgpt.com/docs/enterprise/plugin
 
 ### Engineering formatting and linting
 
-Engineering provides the `jdeurt-engineering:formatting-linting` skill for setting up project formatting and linting and fixing findings. Its JavaScript section links the bundled `references/javascript/eslint.config.ts`, `prettier.config.mjs`, and `eslint-rules.ts`. The build copies these files from the repository root into the skill for both clients. Existing packaging validation compares the copies with their sources. Adopt all three files together so local rule imports resolve.
+Engineering provides the `jdeurt-engineering:formatting-linting` skill for setting up project formatting and linting and fixing findings. Its JavaScript section links the bundled `references/javascript/eslint.config.ts` and `prettier.config.mjs`. The build copies these files from the repository root into the skill for both clients. Packaging validation compares the copies with their sources. Adopt both files together.
 
 The skill documents compatible pinned dependencies, the TypeScript config loader, project source coverage, and validation commands. It uses the project's package manager, with Bun preferred for new Bun projects. Engineering installs no automatic edit hooks.
 
@@ -125,10 +125,6 @@ Use descriptions that explain the caller's contract. Keep type annotations in Ty
 Direct `void`, `undefined`, and `never` return annotations need no return description. The same exemption covers `Promise<void>`, `Promise<undefined>`, and `Promise<never>`. Declaration-only signatures with other written return annotations require descriptions, including named aliases. The rule does not resolve aliases. Keep shared documentation with a stacked overload group.
 
 Preserve the inherited starless documentation-comment format.
-
-`jdeurt/const-on-top` requires both `const` and `let` declarations before executable statements in their program, block, or static-block scope. Imports, types, functions, and variables can share the declaration prefix. Runtime declarations may use either `const` or `let` first. After switching kinds, they cannot return to the earlier kind. Ambient `declare` bindings do not select a runtime group. Each nested scope tracks its own groups, and loop-header declarations remain valid.
-
-The rule enforces declaration order only, regardless of whitespace. The separate `@stylistic/padding-line-between-statements` rule controls blank lines. The declaration rule has no automatic fix because reordering initializers can change evaluation order or dependencies.
 
 The inherited `unicorn/consistent-function-scoping` error flags functions that can move to an outer scope because they do not capture local state. Closures that capture locals, inline callbacks, and class methods remain valid where the rule permits them. `no-inner-declarations` and `max-nested-callbacks` do not express a general restriction on nested functions. The shared configuration adds no blanket function-placement restriction.
 

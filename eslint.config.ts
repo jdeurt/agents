@@ -4,7 +4,6 @@ import { defineConfig } from "eslint/config";
 import { fileURLToPath } from "node:url";
 import js from "@eslint/js";
 import jsdoc from "eslint-plugin-jsdoc";
-import policy from "./eslint-rules.ts";
 import prettierOptions from "./prettier.config.mjs";
 import prettierRecommended from "eslint-plugin-prettier/recommended";
 import reactDoctorLint from "eslint-plugin-react-doctor";
@@ -248,9 +247,8 @@ export function createConfig(options: { typed?: boolean; tsconfigRootDir?: strin
     },
     {
       files,
-      plugins: { "@stylistic": stylistic, jdeurt: policy },
+      plugins: { "@stylistic": stylistic },
       rules: {
-        "jdeurt/const-on-top": "error",
         "@stylistic/lines-between-class-members": [
           "error",
           {

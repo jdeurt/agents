@@ -21,9 +21,8 @@ Use these bundled files for JavaScript and TypeScript projects, including React:
 
 - [ESLint configuration](references/javascript/eslint.config.ts) defines the rules and typed project setup.
 - [Prettier configuration](references/javascript/prettier.config.mjs) defines formatting.
-- [Local ESLint rule implementation](references/javascript/eslint-rules.ts) implements the variable-placement policy imported by the ESLint configuration.
 
-Read all three before adoption. Copy them together into the project root, keeping their filenames and relative imports intact. The config's opening AGENTS comment requires explicit user authorization before you change that file. The user must specify which rules to add, remove, or change. Retain the comment.
+Read both before adoption. Copy them together into the project root, keeping their filenames intact. The config's opening AGENTS comment requires explicit user authorization before you change that file. The user must specify which rules to add, remove, or change. Retain the comment.
 
 For an existing project, inspect configuration and scripts first and reconcile the requested adoption with its conventions. Do not overwrite unrelated project settings.
 
@@ -33,7 +32,6 @@ For a new project, replace the placeholder with this installed skill's directory
 skill_dir="/path/to/installed/formatting-linting"
 cp "$skill_dir/references/javascript/eslint.config.ts" .
 cp "$skill_dir/references/javascript/prettier.config.mjs" .
-cp "$skill_dir/references/javascript/eslint-rules.ts" .
 bun add --dev --exact eslint@10.13.0 @eslint/js@10.0.1 @stylistic/eslint-plugin@5.10.0 typescript-eslint@8.71.2 eslint-plugin-unicorn@78.0.0 eslint-plugin-jsdoc@65.3.15 eslint-config-prettier@10.1.8 eslint-plugin-prettier@5.5.7 eslint-plugin-react-hooks@7.1.1 eslint-plugin-react-doctor@0.9.18 prettier@3.9.9 prettier-plugin-toml@3.0.2 typescript@5.9.3 jiti@2.7.0
 ```
 
@@ -85,11 +83,5 @@ The documentation policy uses seven `eslint-plugin-jsdoc` rules. They require de
 Use descriptions that explain the caller's contract. Keep type annotations in TypeScript signatures rather than repeating them in comments. Document destructured parameter objects as inputs. Individual object properties do not each require a separate tag.
 
 Direct void-returning routines and constructors do not require return descriptions. Declaration-only signatures require return descriptions for value annotations, including named aliases. Keep shared documentation with a stacked overload group. Preserve the inherited starless documentation-comment format.
-
-`jdeurt/const-on-top` requires both `const` and `let` declarations before executable statements in their program, block, or static-block scope. Imports, types, functions, and variables can share the declaration prefix. Runtime declarations may use either `const` or `let` first. After switching kinds, they cannot return to the earlier kind. Ambient `declare` bindings do not select a runtime group. Each nested scope tracks its own groups, and loop-header declarations remain valid.
-
-The rule enforces declaration order only, regardless of whitespace. The separate `@stylistic/padding-line-between-statements` rule controls blank lines.
-
-Preserve evaluation order and dependencies when restructuring. The rule deliberately does not automatically hoist initializers.
 
 `unicorn/consistent-function-scoping` flags functions that can move outward because they do not capture local state. It permits closures and other nested functions according to its own scope analysis. It does not ban every nested function, inline callback, or class method. Do not invent a broader function-placement restriction without the user's specified policy.
