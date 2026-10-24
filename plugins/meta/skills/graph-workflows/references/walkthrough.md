@@ -1,14 +1,14 @@
 # Nested parallel change-brief walkthrough
 
-Use sibling skills `jdeurt-meta:change-brief` and `jdeurt-meta:evidence-review`. These commands assume a jdeurt/agents checkout with Bun.
+The supporting examples in `examples/` are not installable skills. Their WORKFLOW.md descriptors and node files are fixture resources within graph-workflows. These commands assume a jdeurt/agents checkout with Bun.
 
 ```sh
-bun run workflow validate plugins/meta/skills/change-brief/SKILL.md --root plugins/meta/skills
-bun run workflow show plugins/meta/skills/change-brief/SKILL.md split --root plugins/meta/skills
-bun run workflow fork plugins/meta/skills/change-brief/SKILL.md split --true review --true clarity --root plugins/meta/skills
+bun run workflow validate plugins/meta/skills/graph-workflows/references/examples/change-brief/WORKFLOW.md
+bun run workflow show plugins/meta/skills/graph-workflows/references/examples/change-brief/WORKFLOW.md split
+bun run workflow fork plugins/meta/skills/graph-workflows/references/examples/change-brief/WORKFLOW.md split --true review --true clarity
 ```
 
-Validation resolves node files, paired controls, nested workflow, and templates. Navigation lists eligible branches without executing them.
+Direct validation resolves the parent's node files, paired controls, and template. It lists example:evidence-review as an unresolved demonstration identifier. The focused tests copy both descriptors into a disposable registry to validate and traverse the complete nested workflow. They do not add installed skills. Navigation does not execute node instructions.
 
 ## Supported task
 
@@ -23,7 +23,7 @@ Execute _start and draft. A suitable Candidate is:
 
 At split, assess both conditions. Both are true. The comments request fresh subagent review and inherited-context subagent clarity. Dispatch them concurrently when the harness supports it. Give review Candidate, Evidence, the target skill identifier, and required execution instructions. Give clarity Candidate and its own instructions. Neither branch changes Candidate or writes shared files.
 
-The review node targets jdeurt-meta:evidence-review directly. Execute that workflow's _start, check, and _stop. Return supported with reasons tying the candidate to the supplied check. Map the returned artifacts and arrive at gather.
+The review node targets example:evidence-review directly. Execute that workflow's _start, check, and _stop. Return supported with reasons tying the candidate to the supplied check. Map the returned artifacts and arrive at gather.
 
 The clarity branch returns its observation and arrives at gather. Wait for both selected branches. Execute gather once with their explicit outputs. The supported condition is true and the unsupported condition false. Execute _stop and fill its template.
 
@@ -48,7 +48,7 @@ The paragraph separates the change, evidence, and limitation clearly.
 
 - Missing Evidence notes blocks _start before drafting.
 - Unknown or conflicting ordinary conditions block selection.
-- Missing node files, unavailable skill identifiers, and incorrect fork/join pairing fail validation before execution.
+- Missing local node files and incorrect fork/join pairing fail validation. Unresolved skill identifiers block execution until available.
 - Without agents, execute both branches and the entire nested workflow inline with separate artifacts. Never claim concurrency or context control that did not occur.
 - If a branch fails, retain other branch outcomes and completed effects. The example's join cannot claim successful combined review.
 

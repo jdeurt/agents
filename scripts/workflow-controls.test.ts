@@ -1,3 +1,4 @@
+import { withExampleWorkflow } from "./workflow-test-support.ts";
 import { expect, test } from "bun:test";
 import { selectForkEdges, validateParallel } from "../plugins/meta/skills/graph-workflows/scripts/parallel.ts";
 import assert from "node:assert/strict";
@@ -5,8 +6,6 @@ import { loadWorkflow } from "../plugins/meta/skills/graph-workflows/scripts/loa
 import { parseGraph } from "../plugins/meta/skills/graph-workflows/scripts/graph.ts";
 import { runWorkflow } from "../plugins/meta/skills/graph-workflows/scripts/workflow.ts";
 
-const EXAMPLE = "plugins/meta/skills/change-brief/SKILL.md";
-const ROOT = "plugins/meta/skills";
 const FORK_GRAPH = [
   "flowchart TD",
   '_start@{ shape: sm-circ, label: "Start" }',
@@ -122,19 +121,20 @@ test("rejects missing roles, unmatched joins, and incomplete branch mappings", (
   expect(() => validateParallel(parseGraph(FORK_GRAPH), missingMapping)).toThrow("map each outgoing target");
 });
 
-test("validates and navigates the real nested parallel example without executing it", async () => {
-  const workflow = await loadWorkflow(EXAMPLE, ROOT);
+test("validates and navigates the non-installable nested example in a temporary registry", async () =>
+  withExampleWorkflow(async (filename, root) => {
+    const workflow = await loadWorkflow(filename, root);
 
-  expect(workflow.parallel.get("split")?.branches.get("review")).toEqual(["review"]);
-  expect(workflow.calls.get("review")?.documents.has("_stop")).toBe(true);
-  expect(
-    await runWorkflow(["fork", EXAMPLE, "split", "--true", "review", "--true", "clarity", "--root", ROOT])
-  ).toContain('"join": "gather"');
-  await assert.rejects(runWorkflow(["next", EXAMPLE, "split", "--root", ROOT]), /fork command/);
-  expect(
-    await runWorkflow(["next", EXAMPLE, "gather", "--true", "_stop", "--false", "qualify", "--root", ROOT])
-  ).toContain('"id": "_stop"');
-});
+    expect(workflow.parallel.get("split")?.branches.get("review")).toEqual(["review"]);
+    expect(workflow.calls.get("review")?.documents.has("_stop")).toBe(true);
+    expect(
+      await runWorkflow(["fork", filename, "split", "--true", "review", "--true", "clarity", "--root", root])
+    ).toContain('"join": "gather"');
+    await assert.rejects(runWorkflow(["next", filename, "split", "--root", root]), /fork command/);
+    expect(
+      await runWorkflow(["next", filename, "gather", "--true", "_stop", "--false", "qualify", "--root", root])
+    ).toContain('"id": "_stop"');
+  }));
 
 test("permits several nodes in a branch and nested fork/join regions", () => {
   const source = FORK_GRAPH.replace('a["a.md"]', () =>

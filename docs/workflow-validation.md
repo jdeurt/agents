@@ -6,15 +6,15 @@ Checked 2026-10-24 with Bun 1.4.3. Only synthetic task inputs were used.
 
 `bun test scripts/workflow*.test.ts` passed 44 tests across the graph/reference, control, and packaging test files. The tests cover filename and prose/workflow skill targets, recursive references, exact subagent comments, top-down syntax, unconditional/conditional edge separation, malformed and unreachable graphs, containment, branch selection, nested fork/join, and ordinary join rules.
 
-Packaging tests compile Meta for Claude and Codex, write the generated resources to temporary directories, and reload the nested workflow there. A broken marked graph fails marketplace compilation. An unmarked skill retains ordinary validation behavior.
+Packaging tests compile Meta for Claude and Codex, write the generated resources to temporary directories, and materialize the non-installable example descriptors in a disposable registry for nested validation. Both client packages expose only graph-workflows as a new skill. A broken marked graph fails marketplace compilation. An unmarked skill retains ordinary validation behavior.
 
-Repository lint, type checking, formatting, import validation, marketplace build, and build verification passed. The build contains five plugins and 664 generated files. Generated content stays outside source. The complete test suite is reserved for CI.
+Repository lint, type checking, formatting, import validation, marketplace build, and build verification passed. The build contains five plugins. Generated content stays outside source. The complete test suite is reserved for CI.
 
 ## Independent execution and review
 
 A fresh read-only reviewer inspected the changed code, skills, references, examples, and repository guidance. All seven skill-authoring areas passed within the tested scope. Review also checked that each node file has enough declared inputs and instructions to operate without another node's prose or hidden history.
 
-The reviewer authored a separate temporary workflow from the guide and validated its file references and navigation. It also executed the actual change-brief example:
+The reviewer authored a separate temporary workflow from the guide and validated its file references and navigation. It also executed the supporting change-brief fixture:
 
 - Supported inputs produced concurrent evidence and clarity branches, a complete nested evidence-review return, successful join, and the final brief template.
 - The evidence branch used genuinely fresh context. The clarity branch used inherited context with its explicitly supplied Candidate artifact.
@@ -34,3 +34,7 @@ Coherent Editing and ASD-STE100 review covered the changed instructions and pros
 Actual Claude/Codex installation and model discovery were not exercised locally. The forced fallback establishes inline behavior, not execution on every unavailable-capability harness. Natural-language condition truth, node self-containment, and input/output mapping still require agent judgment. No task-outcome improvement claim is made.
 
 Current Toolkit testing guidance was not accessible through the available repository search. Evaluation followed this repository's current skill-authoring and code-review guidance. The requested Mermaid shapes were checked against the official source linked in graph-workflows' evidence reference.
+
+## Final scope audit
+
+The PR adds exactly one installable skill: graph-workflows. All 25 existing skill resources match the base branch byte for byte. Change-brief and evidence-review are supporting resources named WORKFLOW.md inside graph-workflows/references/examples, not additional SKILL.md entries. Tests materialize their registry only in temporary directories. Root changes are limited to directly supporting CLI registration, packaging validation, focused tests, and documentation.

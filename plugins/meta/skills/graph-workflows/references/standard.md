@@ -37,7 +37,7 @@ Use `flowchart TD`. Declare each node once on its own line. Identifiers use lett
 | Start          | `_start@{ shape: sm-circ, label: "Start" }`     | `steps/_start.md`          |
 | Stop           | `_stop@{ shape: framed-circle, label: "Stop" }` | `steps/_stop.md`           |
 | Ordinary file  | `draft["draft.md"]`                             | `steps/draft.md`           |
-| Ordinary skill | `review["jdeurt-meta:evidence-review"]`         | Installed skill identifier |
+| Ordinary skill | `review["jdeurt-engineering:code-review"]`      | Installed skill identifier |
 | Fork or join   | `split@{ shape: fork, label: "Fork or Join" }`  | `steps/split.md`           |
 
 Special shapes resolve `steps/<identifier>.md` in their skill. Ordinary node labels contain either a Markdown filename within that same steps directory or a `plugin:skill-name` identifier. The skill target can be an ordinary prose skill or a workflow. No hyperlinks, relative graph paths, wrapper files, or separate call type are needed.
@@ -64,7 +64,7 @@ Put one of these exact Mermaid comments immediately above a node declaration:
 
 ```text
 %% subagent:fresh
-review["jdeurt-meta:evidence-review"]
+review["jdeurt-engineering:code-review"]
 %% subagent:inherit
 clarity["clarity.md"]
 ```

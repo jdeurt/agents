@@ -26,18 +26,18 @@ Use exactly `%% subagent:fresh` or `%% subagent:inherit` immediately above a nod
 
 ## Validate and exercise
 
-In a jdeurt/agents checkout:
+In a jdeurt/agents checkout, inspect the non-installable parent fixture:
 
 ```sh
-bun run workflow validate plugins/meta/skills/change-brief/SKILL.md --root plugins/meta/skills
-bun run workflow show plugins/meta/skills/change-brief/SKILL.md split --root plugins/meta/skills
-bun run workflow fork plugins/meta/skills/change-brief/SKILL.md split --true review --true clarity --root plugins/meta/skills
+bun run workflow validate plugins/meta/skills/graph-workflows/references/examples/change-brief/WORKFLOW.md
+bun run workflow show plugins/meta/skills/graph-workflows/references/examples/change-brief/WORKFLOW.md split
+bun run workflow fork plugins/meta/skills/graph-workflows/references/examples/change-brief/WORKFLOW.md split --true review --true clarity
 ```
 
-The installed executor bundles the same CLI. It checks structure, references, declared branch mappings, and control pairing. It cannot prove condition truth or node self-containment.
+The installed graph-workflows skill bundles the same CLI. It checks structure, references, declared branch mappings, and control pairing. It cannot prove condition truth or node self-containment.
 
 Exercise complete tasks with actual node instructions. Cover success, alternate decisions, missing evidence, ambiguous conditions, nested return, parallel completion and failure, and inline fallback. Check discovery separately from execution. Validate packaging for intended clients. Static checks do not establish client installation or improved task outcomes.
 
 Request independent read-only review in a fresh context when available. Supply scope, all files, acceptance criteria, authoritative format, and actual results. Assess the seven skill-authoring areas plus self-contained nodes and fork/join semantics. Resolve findings and recheck affected cases.
 
-Use [the evaluation cases](evaluation.md) for focused tests. The sibling change-brief and evidence-review skills demonstrate nested review and parallel branches. Deliver files, actual validation results, useful execution evidence, and unresolved limits.
+Use [the evaluation cases](evaluation.md) for focused tests. The [non-installable example descriptors](examples/change-brief/WORKFLOW.md) demonstrate nested review and parallel branches. The focused tests supply their demonstration skill identifiers through temporary registries. Deliver files, actual validation results, useful execution evidence, and unresolved limits.

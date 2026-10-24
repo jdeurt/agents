@@ -12,7 +12,7 @@ _start@{ shape: sm-circ, label: "Start" }
 draft["draft.md"]
 split@{ shape: fork, label: "Fork or Join" }
 %% subagent:fresh
-review["jdeurt-meta:evidence-review"]
+review["example:evidence-review"]
 %% subagent:inherit
 clarity["clarity.md"]
 gather@{ shape: fork, label: "Fork or Join" }
@@ -31,4 +31,4 @@ qualify --> _stop
 
 ## Notes
 
-- Execute with jdeurt-meta:graph-workflows. Distribute this skill together with jdeurt-meta:evidence-review.
+- This is a non-installable fixture. Tests supply example:evidence-review through a temporary fixture registry.

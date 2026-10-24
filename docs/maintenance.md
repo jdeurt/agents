@@ -149,14 +149,14 @@ Review meaning and technical terms separately. The skill does not include the of
 Meta includes `jdeurt-meta:graph-workflows`, which routes to writing and execution guidance. Its `references/standard.md` defines mermaid-v1. Entries preserve ordinary frontmatter, then contain a Mermaid graph and optional Notes bullets. Start and stop files hold free-form public contracts. Each ordinary node names a Markdown file in steps or a plugin:skill identifier. Node files stay self-contained.
 
 ```sh
-bun run workflow validate plugins/meta/skills/change-brief/SKILL.md --root plugins/meta/skills
-bun run workflow show plugins/meta/skills/change-brief/SKILL.md split --root plugins/meta/skills
-bun run workflow fork plugins/meta/skills/change-brief/SKILL.md split --true review --true clarity --root plugins/meta/skills
+bun run workflow validate plugins/meta/skills/graph-workflows/references/examples/change-brief/WORKFLOW.md
+bun run workflow show plugins/meta/skills/graph-workflows/references/examples/change-brief/WORKFLOW.md split
+bun run workflow fork plugins/meta/skills/graph-workflows/references/examples/change-brief/WORKFLOW.md split --true review --true clarity
 bun test scripts/workflow*.test.ts
 ```
 
 The CLI is bundled with graph-workflows and requires Bun. It validates and navigates without executing instructions or Mermaid code. Agents judge conditions, execute nodes and parallel branches, and retain task state. Unlabeled arrows are unconditional. Mixing unconditional and conditional arrows at one source is invalid.
 
-Marked authored workflows receive graph and reference validation during compilation. Unmarked skills retain existing behavior. The change-brief and evidence-review examples ship together. Their Markdown files demonstrate nested return, comment-based agent preferences, explicit fork/join, and output templates.
+Marked installable SKILL.md entries receive graph and reference validation during compilation. Unmarked skills retain existing behavior. Non-installable example descriptors and node files live under graph-workflows/references/examples. Tests materialize them in temporary registries to check nested return, comment-based agent preferences, explicit fork/join, and output templates. Graph-workflows is the only new installable skill.
 
 See [workflow validation evidence](workflow-validation.md) for the focused tests, independent execution, and remaining test limits.

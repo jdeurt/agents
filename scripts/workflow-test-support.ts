@@ -1,4 +1,5 @@
-import { mkdtemp, realpath, rm } from "node:fs/promises";
+import { fileURLToPath } from "node:url";
+import { cp, mkdtemp, realpath, rename, rm } from "node:fs/promises";
 import path from "node:path";
 import { tmpdir } from "node:os";
 
@@ -69,4 +70,28 @@ export async function withWorkflowFixture<T>(use: (root: string) => Promise<T>) 
   } finally {
     await rm(root, { recursive: true, force: true });
   }
+}
+
+/**
+Materialize supporting examples as disposable skills for nested-identifier tests.
+@param use - Test operation receiving the parent entry and fixture registry root.
+@param examples - Directory containing non-installable WORKFLOW.md example descriptors.
+@returns The test result after removing the temporary registry.
+*/
+export async function withExampleWorkflow<T>(
+  use: (filename: string, root: string) => Promise<T>,
+  examples = fileURLToPath(new URL("../plugins/meta/skills/graph-workflows/references/examples/", import.meta.url))
+) {
+  return withWorkflowFixture(async (root) => {
+    const skills = path.join(root, "example/skills");
+
+    for (const name of ["change-brief", "evidence-review"]) {
+      const destination = path.join(skills, name);
+
+      await cp(path.join(examples, name), destination, { recursive: true });
+      await rename(path.join(destination, "WORKFLOW.md"), path.join(destination, "SKILL.md"));
+    }
+
+    return use(path.join(skills, "change-brief/SKILL.md"), root);
+  });
 }

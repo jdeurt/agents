@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import type { Plugin } from "./types.ts";
-import { SIMPLE_GRAPH, entry, withWorkflowFixture } from "./workflow-test-support.ts";
+import { SIMPLE_GRAPH, entry, withExampleWorkflow, withWorkflowFixture } from "./workflow-test-support.ts";
 import { loadWorkflow } from "../plugins/meta/skills/graph-workflows/scripts/load.ts";
 import { expect, test } from "bun:test";
 import { TOML } from "bun";
@@ -25,7 +25,7 @@ async function assertOrdinaryCompile(root: string, plugin: Plugin) {
 }
 
 test(
-  "packages workflow tooling and sibling dependencies for both clients",
+  "packages only graph-workflows and its non-installable examples for both clients",
   async () =>
     withWorkflowFixture(async (staging) => {
       const registryText = await Bun.file(path.join(SOURCE_ROOT, "marketplace.toml")).text();
@@ -43,19 +43,29 @@ test(
 
       for (const client of ["claude", "codex"]) {
         const base = `dist/${client}/plugins/meta/skills`;
-        const compiledEntry = files.get(`${base}/change-brief/SKILL.md`)?.contents.toString();
-        const loaded = await loadWorkflow(path.join(staging, base, "change-brief/SKILL.md"), path.join(staging, base));
+        const skillEntries = files
+          .keys()
+          .filter((filename) => filename.startsWith(`${base}/`) && filename.endsWith("/SKILL.md"))
+          .toArray();
 
-        expect(loaded.calls.get("review")?.documents.has("_stop")).toBe(true);
-        expect(compiledEntry).toContain("workflow: mermaid-v1");
-        expect(files.has(`${base}/graph-workflows/SKILL.md`)).toBe(true);
-        expect(files.has(`${base}/workflow-authoring/SKILL.md`)).toBe(false);
-        expect(files.has(`${base}/workflow-execution/SKILL.md`)).toBe(false);
-        expect(compiledEntry).toContain('review["jdeurt-meta:evidence-review"]');
-        expect(files.has(`${base}/evidence-review/steps/check.md`)).toBe(true);
+        expect(skillEntries.toSorted((left, right) => left.localeCompare(right))).toEqual([
+          `${base}/graph-workflows/SKILL.md`,
+          `${base}/importing/SKILL.md`,
+          `${base}/publishing/SKILL.md`,
+          `${base}/skill-authoring/SKILL.md`,
+          `${base}/soubi/SKILL.md`,
+        ]);
         expect(files.has(`${base}/graph-workflows/scripts/workflow.ts`)).toBe(true);
-        expect(files.has(`${base}/graph-workflows/scripts/graph.ts`)).toBe(true);
-        expect(files.has(`${base}/change-brief/templates/result.md`)).toBe(true);
+        expect(files.has(`${base}/graph-workflows/references/examples/change-brief/WORKFLOW.md`)).toBe(true);
+        expect(files.has(`${base}/graph-workflows/references/examples/evidence-review/WORKFLOW.md`)).toBe(true);
+        await withExampleWorkflow(
+          async (filename, root) => {
+            const workflow = await loadWorkflow(filename, root);
+
+            expect(workflow.calls.get("review")?.documents.has("_stop")).toBe(true);
+          },
+          path.join(staging, base, "graph-workflows/references/examples")
+        );
       }
     }),
   BUILD_TIMEOUT_MS
