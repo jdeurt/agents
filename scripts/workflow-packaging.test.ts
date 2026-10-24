@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import type { Plugin } from "./types.ts";
 import { SIMPLE_GRAPH, entry, withWorkflowFixture } from "./workflow-test-support.ts";
-import { loadWorkflow } from "../plugins/meta/skills/workflow-execution/scripts/load.ts";
+import { loadWorkflow } from "../plugins/meta/skills/graph-workflows/scripts/load.ts";
 import { expect, test } from "bun:test";
 import { TOML } from "bun";
 import { compilePlugin } from "./compile-plugin.ts";
@@ -48,10 +48,13 @@ test(
 
         expect(loaded.calls.get("review")?.documents.has("_stop")).toBe(true);
         expect(compiledEntry).toContain("workflow: mermaid-v1");
+        expect(files.has(`${base}/graph-workflows/SKILL.md`)).toBe(true);
+        expect(files.has(`${base}/workflow-authoring/SKILL.md`)).toBe(false);
+        expect(files.has(`${base}/workflow-execution/SKILL.md`)).toBe(false);
         expect(compiledEntry).toContain('review["jdeurt-meta:evidence-review"]');
         expect(files.has(`${base}/evidence-review/steps/check.md`)).toBe(true);
-        expect(files.has(`${base}/workflow-execution/scripts/workflow.ts`)).toBe(true);
-        expect(files.has(`${base}/workflow-execution/scripts/graph.ts`)).toBe(true);
+        expect(files.has(`${base}/graph-workflows/scripts/workflow.ts`)).toBe(true);
+        expect(files.has(`${base}/graph-workflows/scripts/graph.ts`)).toBe(true);
         expect(files.has(`${base}/change-brief/templates/result.md`)).toBe(true);
       }
     }),

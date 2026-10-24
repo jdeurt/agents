@@ -1,9 +1,9 @@
 import { expect, test } from "bun:test";
-import { selectForkEdges, validateParallel } from "../plugins/meta/skills/workflow-execution/scripts/parallel.ts";
+import { selectForkEdges, validateParallel } from "../plugins/meta/skills/graph-workflows/scripts/parallel.ts";
 import assert from "node:assert/strict";
-import { loadWorkflow } from "../plugins/meta/skills/workflow-execution/scripts/load.ts";
-import { parseGraph } from "../plugins/meta/skills/workflow-execution/scripts/graph.ts";
-import { runWorkflow } from "../plugins/meta/skills/workflow-execution/scripts/workflow.ts";
+import { loadWorkflow } from "../plugins/meta/skills/graph-workflows/scripts/load.ts";
+import { parseGraph } from "../plugins/meta/skills/graph-workflows/scripts/graph.ts";
+import { runWorkflow } from "../plugins/meta/skills/graph-workflows/scripts/workflow.ts";
 
 const EXAMPLE = "plugins/meta/skills/change-brief/SKILL.md";
 const ROOT = "plugins/meta/skills";

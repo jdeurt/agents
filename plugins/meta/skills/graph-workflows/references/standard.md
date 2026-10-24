@@ -25,7 +25,7 @@ work --> _stop
 
 ## Notes
 
-- Execute with jdeurt-meta:workflow-execution.
+- Execute with jdeurt-meta:graph-workflows.
 ````
 
 ## Nodes and Markdown

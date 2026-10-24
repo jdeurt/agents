@@ -1,3 +1,3 @@
-import { workflowMain } from "../plugins/meta/skills/workflow-execution/scripts/workflow.ts";
+import { workflowMain } from "../plugins/meta/skills/graph-workflows/scripts/workflow.ts";
 
 await workflowMain(Bun.argv.slice(2));

@@ -1,4 +1,4 @@
-import { loadWorkflow } from "../plugins/meta/skills/workflow-execution/scripts/load.ts";
+import { loadWorkflow } from "../plugins/meta/skills/graph-workflows/scripts/load.ts";
 import * as values from "./compile-plugin-values.ts";
 import * as z from "zod/mini";
 import type { BuiltFile, Plugin } from "./types.ts";

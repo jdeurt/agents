@@ -146,7 +146,7 @@ Review meaning and technical terms separately. The skill does not include the of
 
 ## Workflow skills
 
-Meta includes `jdeurt-meta:workflow-authoring` and `jdeurt-meta:workflow-execution`. The executor's `references/format.md` defines mermaid-v1. Entries preserve ordinary frontmatter, then contain a Mermaid graph and optional Notes bullets. Start and stop files hold free-form public contracts. Each ordinary node names a Markdown file in steps or a plugin:skill identifier. Node files stay self-contained.
+Meta includes `jdeurt-meta:graph-workflows`, which routes to writing and execution guidance. Its `references/standard.md` defines mermaid-v1. Entries preserve ordinary frontmatter, then contain a Mermaid graph and optional Notes bullets. Start and stop files hold free-form public contracts. Each ordinary node names a Markdown file in steps or a plugin:skill identifier. Node files stay self-contained.
 
 ```sh
 bun run workflow validate plugins/meta/skills/change-brief/SKILL.md --root plugins/meta/skills
@@ -155,7 +155,7 @@ bun run workflow fork plugins/meta/skills/change-brief/SKILL.md split --true rev
 bun test scripts/workflow*.test.ts
 ```
 
-The CLI is bundled with workflow-execution and requires Bun. It validates and navigates without executing instructions or Mermaid code. Agents judge conditions, execute nodes and parallel branches, and retain task state. Unlabeled arrows are unconditional. Mixing unconditional and conditional arrows at one source is invalid.
+The CLI is bundled with graph-workflows and requires Bun. It validates and navigates without executing instructions or Mermaid code. Agents judge conditions, execute nodes and parallel branches, and retain task state. Unlabeled arrows are unconditional. Mixing unconditional and conditional arrows at one source is invalid.
 
 Marked authored workflows receive graph and reference validation during compilation. Unmarked skills retain existing behavior. The change-brief and evidence-review examples ship together. Their Markdown files demonstrate nested return, comment-based agent preferences, explicit fork/join, and output templates.
 

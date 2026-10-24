@@ -1,14 +1,14 @@
 # Workflow evaluation cases
 
-Use the authoritative format in `jdeurt-meta:workflow-execution`. Judge artifacts and behavior, not exact wording.
+Use the authoritative format in `jdeurt-meta:graph-workflows`. Judge artifacts and behavior, not exact wording.
 
 ## Activation
 
-- “Create a workflow skill for reviewing a release brief.” Select workflow-authoring.
-- “Turn these Markdown steps into a graph with nested review.” Select workflow-authoring.
+- “Create a workflow skill for reviewing a release brief.” Select graph-workflows and its writing reference.
+- “Turn these Markdown steps into a graph with nested review.” Select graph-workflows and its writing reference.
 - A larger design task needs a reusable conditional skill. Evaluate that subtask's intent.
-- “Draw a Mermaid architecture diagram.” Mermaid alone does not select workflow-authoring.
-- “Run this mermaid-v1 skill.” Select workflow-execution.
+- “Draw a Mermaid architecture diagram.” Mermaid alone does not select graph-workflows.
+- “Run this mermaid-v1 skill.” Select graph-workflows and its execution reference.
 - “Improve a normal prose skill.” Select skill-authoring unless a graph is requested.
 
 ## Structural checks

@@ -8,7 +8,7 @@ Checked 2026-10-24 with Bun 1.4.3. Only synthetic task inputs were used.
 
 Packaging tests compile Meta for Claude and Codex, write the generated resources to temporary directories, and reload the nested workflow there. A broken marked graph fails marketplace compilation. An unmarked skill retains ordinary validation behavior.
 
-Repository lint, type checking, formatting, import validation, marketplace build, and build verification passed. The build contains five plugins and 662 generated files. Generated content stays outside source. The complete test suite is reserved for CI.
+Repository lint, type checking, formatting, import validation, marketplace build, and build verification passed. The build contains five plugins and 664 generated files. Generated content stays outside source. The complete test suite is reserved for CI.
 
 ## Independent execution and review
 
@@ -33,4 +33,4 @@ Coherent Editing and ASD-STE100 review covered the changed instructions and pros
 
 Actual Claude/Codex installation and model discovery were not exercised locally. The forced fallback establishes inline behavior, not execution on every unavailable-capability harness. Natural-language condition truth, node self-containment, and input/output mapping still require agent judgment. No task-outcome improvement claim is made.
 
-Current Toolkit testing guidance was not accessible through the available repository search. Evaluation followed this repository's current skill-authoring and code-review guidance. The requested Mermaid shapes were checked against the official source linked in workflow-execution's evidence reference.
+Current Toolkit testing guidance was not accessible through the available repository search. Evaluation followed this repository's current skill-authoring and code-review guidance. The requested Mermaid shapes were checked against the official source linked in graph-workflows' evidence reference.

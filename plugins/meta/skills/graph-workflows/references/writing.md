@@ -1,11 +1,6 @@
----
-name: workflow-authoring
-description: Use when creating or revising a workflow skill with Mermaid, Markdown-backed nodes, conditional edges, nested workflows, or parallel branches.
----
-
 # Author a workflow skill
 
-Apply `jdeurt-meta:skill-authoring`. Read `jdeurt-meta:workflow-execution` and its `references/format.md` for the authoritative dialect. Keep readable Markdown primary.
+Apply `jdeurt-meta:skill-authoring`. Read [execution guidance](executing.md) and the [shared standard](standard.md) for the authoritative dialect. Keep readable Markdown primary.
 
 Establish the task, audience, available inputs, expected outputs, user scope, and evidence of completion. Choose a graph when decisions or reusable workflows help the task. Define acceptance criteria before authoring.
 
@@ -45,4 +40,4 @@ Exercise complete tasks with actual node instructions. Cover success, alternate 
 
 Request independent read-only review in a fresh context when available. Supply scope, all files, acceptance criteria, authoritative format, and actual results. Assess the seven skill-authoring areas plus self-contained nodes and fork/join semantics. Resolve findings and recheck affected cases.
 
-Use [the evaluation cases](references/evaluation.md) for focused tests. The sibling change-brief and evidence-review skills demonstrate nested review and parallel branches. Deliver files, actual validation results, useful execution evidence, and unresolved limits.
+Use [the evaluation cases](evaluation.md) for focused tests. The sibling change-brief and evidence-review skills demonstrate nested review and parallel branches. Deliver files, actual validation results, useful execution evidence, and unresolved limits.

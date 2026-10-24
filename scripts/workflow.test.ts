@@ -1,15 +1,11 @@
 import { PACKET, SIMPLE_GRAPH, entry, withWorkflowFixture, writeWorkflow } from "./workflow-test-support.ts";
 import { describe, expect, test } from "bun:test";
-import {
-  isWorkflow,
-  parseDocument,
-  parseNodeFile,
-} from "../plugins/meta/skills/workflow-execution/scripts/document.ts";
-import { parseGraph, selectEdge } from "../plugins/meta/skills/workflow-execution/scripts/graph.ts";
+import { isWorkflow, parseDocument, parseNodeFile } from "../plugins/meta/skills/graph-workflows/scripts/document.ts";
+import { parseGraph, selectEdge } from "../plugins/meta/skills/graph-workflows/scripts/graph.ts";
 import assert from "node:assert/strict";
-import { loadWorkflow } from "../plugins/meta/skills/workflow-execution/scripts/load.ts";
+import { loadWorkflow } from "../plugins/meta/skills/graph-workflows/scripts/load.ts";
 import path from "node:path";
-import { runWorkflow } from "../plugins/meta/skills/workflow-execution/scripts/workflow.ts";
+import { runWorkflow } from "../plugins/meta/skills/graph-workflows/scripts/workflow.ts";
 import { symlink } from "node:fs/promises";
 
 const BRANCH_GRAPH = [

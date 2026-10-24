@@ -31,4 +31,4 @@ qualify --> _stop
 
 ## Notes
 
-- Execute with jdeurt-meta:workflow-execution. Distribute this skill together with jdeurt-meta:evidence-review.
+- Execute with jdeurt-meta:graph-workflows. Distribute this skill together with jdeurt-meta:evidence-review.

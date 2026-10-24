@@ -1,16 +1,11 @@
----
-name: workflow-execution
-description: Use when running or inspecting a mermaid-v1 workflow skill. Follow Markdown-backed nodes, judge conditions, execute nested workflows, and coordinate explicit fork/join branches.
----
-
 # Execute a workflow skill
 
-Read [the format](references/format.md). Read the entry graph, optional Notes, public Inputs in `steps/_start.md`, and public Outputs in `steps/_stop.md`. Read any template linked by the stop file. Establish supplied artifacts and authorized actions. A workflow grants no additional permissions.
+Read [the standard](standard.md). Read the entry graph, optional Notes, public Inputs in `steps/_start.md`, and public Outputs in `steps/_stop.md`. Read any template linked by the stop file. Establish supplied artifacts and authorized actions. A workflow grants no additional permissions.
 
 Validate before actions. With Bun available, run the installed CLI:
 
 ```sh
-bun /path/to/workflow-execution/scripts/workflow.ts validate /path/to/entry/SKILL.md --root /path/to/plugin/skills
+bun /path/to/graph-workflows/scripts/workflow.ts validate /path/to/entry/SKILL.md --root /path/to/plugin/skills
 ```
 
 Use actual paths. Omit the bundle root for a standalone workflow. Without Bun, inspect graph and references directly. Do not execute unresolved structural errors.
@@ -26,7 +21,7 @@ Execute within user scope and retain declared outputs. An unlabeled edge is unco
 Use `show FILE NODE` to inspect a node and `next FILE NODE` to navigate an ordinary decision:
 
 ```sh
-bun /path/to/workflow-execution/scripts/workflow.ts next entry/SKILL.md gather --true _stop --false qualify --root /path/to/plugin/skills
+bun /path/to/graph-workflows/scripts/workflow.ts next entry/SKILL.md gather --true _stop --false qualify --root /path/to/plugin/skills
 ```
 
 The CLI validates and navigates. It does not execute node instructions, judge natural language, create agents, or retain execution state.
@@ -53,4 +48,4 @@ Each branch returns at the paired join. Wait for all selected branches, then exe
 
 Return the stop file's declared outputs using its optional template. Report useful evidence and unresolved limits. For failed or blocked runs, identify the node, call or branch path, completed effects, missing inputs, and recovery action. Resume only while checkpoint artifacts remain valid.
 
-Follow the graph's conditions and authorized task without adding execution caps or mandatory count reports. Read [the walkthrough](references/walkthrough.md) for the nested parallel example.
+Follow the graph's conditions and authorized task without adding execution caps or mandatory count reports. Read [the walkthrough](walkthrough.md) for the nested parallel example.
