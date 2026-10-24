@@ -1,0 +1,10 @@
+{
+  "author": {
+    "name": "jdeurt"
+  },
+  "description": "Build with Bun TypeScript, format and lint code, and review code against shared style rules.",
+  "mcpServers": "./.mcp.json",
+  "name": "jdeurt-engineering",
+  "skills": "./skills/",
+  "version": "1.2.9"
+}

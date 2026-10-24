@@ -1,0 +1,9 @@
+{
+  "author": {
+    "name": "jdeurt"
+  },
+  "description": "Co-author documents, write clearly and concisely, and keep edited text coherent.",
+  "name": "jdeurt-writing",
+  "skills": "./skills/",
+  "version": "1.0.4"
+}

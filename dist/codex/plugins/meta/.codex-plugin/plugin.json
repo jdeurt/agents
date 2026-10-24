@@ -1,0 +1,9 @@
+{
+  "author": {
+    "name": "jdeurt"
+  },
+  "description": "Author skills and maintain imports and publishing for jdeurt/agents.",
+  "name": "jdeurt-meta",
+  "skills": "./skills/",
+  "version": "1.0.3"
+}

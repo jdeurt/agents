@@ -1,0 +1,10 @@
+{
+  "author": {
+    "name": "jdeurt"
+  },
+  "description": "Design clear, accessible interfaces and user flows.",
+  "mcpServers": "./.mcp.json",
+  "name": "jdeurt-design",
+  "skills": "./skills/",
+  "version": "1.0.2"
+}

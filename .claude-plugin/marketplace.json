@@ -1,0 +1,36 @@
+{
+  "name": "agents",
+  "owner": {
+    "name": "jdeurt"
+  },
+  "metadata": {
+    "description": "Skills and plugins I like."
+  },
+  "plugins": [
+    {
+      "name": "jdeurt-design",
+      "source": "./dist/claude/plugins/design",
+      "description": "Design clear, accessible interfaces and user flows."
+    },
+    {
+      "name": "jdeurt-engineering",
+      "source": "./dist/claude/plugins/engineering",
+      "description": "Build with Bun TypeScript, format and lint code, and review code against shared style rules."
+    },
+    {
+      "name": "jdeurt-writing",
+      "source": "./dist/claude/plugins/writing",
+      "description": "Co-author documents, write clearly and concisely, and keep edited text coherent."
+    },
+    {
+      "name": "jdeurt-meta",
+      "source": "./dist/claude/plugins/meta",
+      "description": "Author skills and maintain imports and publishing for jdeurt/agents."
+    },
+    {
+      "name": "jdeurt-cloudflare",
+      "source": "./dist/claude/plugins/cloudflare",
+      "description": "Build, test, and deploy applications on Cloudflare."
+    }
+  ]
+}
