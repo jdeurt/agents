@@ -143,3 +143,20 @@ Writing imports [ASD-STE100](https://github.com/danyuchn/asd-ste100-skill) from 
 The import includes its MIT license, examples, references, and `scripts/ste-lint.py`. This Python script uses only the standard library. Run it for the structural rules described in the skill.
 
 Review meaning and technical terms separately. The skill does not include the official ASD word dictionary or certify compliance with that dictionary.
+
+## Workflow skills
+
+Meta includes `jdeurt-meta:workflow-authoring` and `jdeurt-meta:workflow-execution`. The executor's `references/format.md` defines mermaid-v1. Entries preserve ordinary frontmatter, then contain a Mermaid graph and optional Notes bullets. Start and stop files hold free-form public contracts. Each ordinary node names a Markdown file in steps or a plugin:skill identifier. Node files stay self-contained.
+
+```sh
+bun run workflow validate plugins/meta/skills/change-brief/SKILL.md --root plugins/meta/skills
+bun run workflow show plugins/meta/skills/change-brief/SKILL.md split --root plugins/meta/skills
+bun run workflow fork plugins/meta/skills/change-brief/SKILL.md split --true review --true clarity --root plugins/meta/skills
+bun test scripts/workflow*.test.ts
+```
+
+The CLI is bundled with workflow-execution and requires Bun. It validates and navigates without executing instructions or Mermaid code. Agents judge conditions, execute nodes and parallel branches, and retain task state. Unlabeled arrows are unconditional. Mixing unconditional and conditional arrows at one source is invalid.
+
+Marked authored workflows receive graph and reference validation during compilation. Unmarked skills retain existing behavior. The change-brief and evidence-review examples ship together. Their Markdown files demonstrate nested return, comment-based agent preferences, explicit fork/join, and output templates.
+
+See [workflow validation evidence](workflow-validation.md) for the focused tests, independent execution, and remaining test limits.

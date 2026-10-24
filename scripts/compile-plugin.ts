@@ -1,3 +1,4 @@
+import { loadWorkflow } from "../plugins/meta/skills/workflow-execution/scripts/load.ts";
 import * as values from "./compile-plugin-values.ts";
 import * as z from "zod/mini";
 import type { BuiltFile, Plugin } from "./types.ts";
@@ -167,6 +168,10 @@ async function collectSkill(
   skills: Map<string, Awaited<ReturnType<typeof validateSkillFrontmatter>>>
 ) {
   const metadata = await validateSkillFrontmatter(path.join(source, file));
+
+  if (metadata.metadata?.["workflow"] === "mermaid-v1") {
+    await loadWorkflow(path.join(source, file), path.join(source, "skills"));
+  }
 
   skills.set(metadata.name, metadata);
 }

@@ -1,0 +1,2 @@
+- Verdict: {{Verdict}}
+- Reasons: {{Reasons}}

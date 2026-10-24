@@ -3,6 +3,7 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "workflow": "bun scripts/workflow.ts",
     "build": "bun scripts/build-marketplace.ts",
     "check": "bun scripts/build-marketplace.ts --check",
     "test": "bun test scripts/",
