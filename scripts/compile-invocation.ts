@@ -79,22 +79,11 @@ export function applyInvocationPolicies(
 
     const skillPath = `skills/${name}/SKILL.md`;
     const skill = requireSkill(files.get(skillPath), harness, name);
-    const metadataKeys = Object.keys(metadata.metadata ?? {});
-
     const source = Buffer.from(skill.contents).toString();
-    const { header, document: skillDocument } = parseSkillFrontmatter(source);
+    const { header } = parseSkillFrontmatter(source);
+    const skillDocument = { ...metadata };
 
-    // Soubi 0.0.1 flattens nested YAML metadata; retain the validated source fields.
-
-    for (const key of metadataKeys) {
-      if (!Object.hasOwn(metadata, key)) {
-        Reflect.deleteProperty(skillDocument, key);
-      }
-    }
-
-    for (const [key, value] of Object.entries(metadata)) {
-      skillDocument[key] = value;
-    }
+    // Soubi 0.0.1 can flatten metadata or misread folded descriptions. Restore the validated source header.
 
     if (harness === "codex") {
       delete skillDocument["allowed-tools"];

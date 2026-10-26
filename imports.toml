@@ -65,3 +65,12 @@ path = "."
 destination = "plugins/writing/skills/asd-ste100"
 license = "LICENSE"
 scripts = ["scripts/ste-lint.py"]
+
+[[imports]]
+name = "graph-workflows"
+repository = "https://github.com/jdeurt/graph-workflows.git"
+kind = "skill"
+path = "skills/graph-workflows"
+destination = "plugins/meta/skills/graph-workflows"
+license = "LICENSE"
+scripts = ["scripts/workflow.py"]

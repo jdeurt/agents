@@ -36,9 +36,9 @@ async function prepareAsdFixture(upstream: string) {
   await writeFile(path.join(upstream, ASD_STE100_LINTER_PATH), ASD_STE100_LINTER_SOURCE);
   await writeFile(path.join(upstream, "LICENSE"), FIXTURE_LICENSE);
   initializeFixtureRepository(upstream);
-  process.env["GIT_CONFIG_COUNT"] = "4";
-  process.env["GIT_CONFIG_KEY_3"] = gitRewrite;
-  process.env["GIT_CONFIG_VALUE_3"] = ASD_STE100_REPOSITORY;
+  process.env["GIT_CONFIG_COUNT"] = "5";
+  process.env["GIT_CONFIG_KEY_4"] = gitRewrite;
+  process.env["GIT_CONFIG_VALUE_4"] = ASD_STE100_REPOSITORY;
 }
 
 /**
@@ -48,6 +48,21 @@ Create minimal frontmatter and instructions for an imported skill fixture.
 */
 function fixtureSkill(name: string) {
   return `---\nname: ${name}\ndescription: Fixture skill for jscpd.\n---\n\nScan all supported formats.\n`;
+}
+
+/**
+Create a graph skill fixture with folded descriptions and nested metadata.
+@param upstream - Fixture repository receiving the imported graph skill.
+*/
+async function prepareGraphFixture(upstream: string) {
+  const skill = path.join(upstream, "skills/graph-workflows");
+
+  await mkdir(path.join(skill, "scripts"), { recursive: true });
+  await writeFile(
+    path.join(skill, "SKILL.md"),
+    "---\nname: graph-workflows\ndescription: >-\n  Use when reading graph workflows\n  identified by metadata.workflow: mermaid-v1.\nmetadata:\n  fixture: graph-import\n---\nRead the graph before execution.\n"
+  );
+  await writeFile(path.join(skill, "scripts/workflow.py"), "# Fixture graph navigation script.\n");
 }
 
 /**
@@ -84,6 +99,8 @@ async function prepareFixture(upstream: string) {
     await writeFile(path.join(upstream, "skills", name, "SKILL.md"), fixtureSkill(name));
   }
 
+  await prepareGraphFixture(upstream);
+
   for (const manifest of ["plugin.json", ".codex-plugin/plugin.json", ".claude-plugin/plugin.json"]) {
     await Bun.write(
       path.join(upstream, manifest),
@@ -96,13 +113,15 @@ async function prepareFixture(upstream: string) {
   }
 
   initializeFixtureRepository(upstream);
-  process.env["GIT_CONFIG_COUNT"] = "3";
+  process.env["GIT_CONFIG_COUNT"] = "4";
   process.env["GIT_CONFIG_KEY_0"] = gitRewrite;
   process.env["GIT_CONFIG_VALUE_0"] = "https://github.com/shadcn-ui/ui.git";
   process.env["GIT_CONFIG_KEY_1"] = gitRewrite;
   process.env["GIT_CONFIG_VALUE_1"] = "https://github.com/cloudflare/skills.git";
   process.env["GIT_CONFIG_KEY_2"] = gitRewrite;
   process.env["GIT_CONFIG_VALUE_2"] = "https://github.com/kucherenko/jscpd.git";
+  process.env["GIT_CONFIG_KEY_3"] = gitRewrite;
+  process.env["GIT_CONFIG_VALUE_3"] = "https://github.com/jdeurt/graph-workflows.git";
 }
 
 /**
@@ -139,6 +158,8 @@ export async function withImportFixture<T>(use: (upstream: string) => Promise<T>
     "GIT_CONFIG_VALUE_2",
     "GIT_CONFIG_KEY_3",
     "GIT_CONFIG_VALUE_3",
+    "GIT_CONFIG_KEY_4",
+    "GIT_CONFIG_VALUE_4",
   ];
   const previous = keys.map((key) => process.env[key]);
 

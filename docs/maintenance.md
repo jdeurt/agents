@@ -143,3 +143,21 @@ Writing imports [ASD-STE100](https://github.com/danyuchn/asd-ste100-skill) from 
 The import includes its MIT license, examples, references, and `scripts/ste-lint.py`. This Python script uses only the standard library. Run it for the structural rules described in the skill.
 
 Review meaning and technical terms separately. The skill does not include the official ASD word dictionary or certify compliance with that dictionary.
+
+### Graph Workflows and clean implementation
+
+Meta imports [Graph Workflows](https://github.com/jdeurt/graph-workflows) from its default branch.
+The import preserves its Unlicense and includes `scripts/workflow.py`.
+Python 3 runs the navigation CLI.
+The CLI validates graphs and resolves instruction paths.
+Agents execute the steps and assess edge conditions.
+
+Engineering provides `jdeurt-engineering:clean-implementation`.
+It plans behavior scenarios before implementation and writes permanent tests afterward.
+Temporary implementation probes are removed.
+Focused reviewers check implementation boundaries, permanent tests, and final integration.
+Helper searches and clone reports inform reuse decisions.
+
+The import declaration and marker remain in source.
+Imported files resolve only into temporary build sources.
+Do not vendor the Graph Workflows directory into authored plugins.
