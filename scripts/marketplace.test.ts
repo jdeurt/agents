@@ -77,6 +77,34 @@ async function assertImportedSkills(output: string) {
 }
 
 /**
+Check that both clients preserve graph imports and workflow metadata.
+@param output - Generated marketplace root containing both client distributions.
+*/
+async function assertGraphWorkflows(output: string) {
+  for (const harness of harnesses) {
+    const base = path.join(output, `dist/${harness}/plugins`);
+    const imported = path.join(base, "meta/skills/graph-workflows");
+    const metadata = await validateSkillFrontmatter(path.join(imported, "SKILL.md"), { harness });
+    const workflow = await validateSkillFrontmatter(
+      path.join(base, "engineering/skills/clean-implementation/SKILL.md"),
+      { harness }
+    );
+
+    assert.equal(
+      metadata["description"],
+      "Use when reading graph workflows identified by metadata.workflow: mermaid-v1."
+    );
+    assert.deepEqual(metadata.metadata, { fixture: "graph-import" });
+    assert.equal(workflow.metadata?.["workflow"], "mermaid-v1");
+    assert.equal(
+      await readFile(path.join(imported, "scripts/workflow.py"), names.utf8),
+      "# Fixture graph navigation script.\n"
+    );
+    assert.equal(await readFile(path.join(imported, "UPSTREAM-LICENSE"), names.utf8), "Fixture license\n");
+  }
+}
+
+/**
 Check plugin identities and local paths in both client catalogs.
 @param output - Generated marketplace root containing the client catalogs.
 */
@@ -149,6 +177,7 @@ async function assertBuiltContent(output: string) {
   await assertPluginMetadata(output);
   await assertBundledConfiguration(output);
   await assertImportedSkills(output);
+  await assertGraphWorkflows(output);
   await readFile(
     path.join(output, "dist/codex/plugins/writing/skills/writing-clearly-and-concisely/elements-of-style.md")
   );

@@ -28,6 +28,10 @@ jobs:
       - run: bun run format:check
       - run: bun run imports:check
       - run: bun run build
+      - name: Validate development graph
+        run: >-
+          python3 .marketplace-build/dist/codex/plugins/meta/skills/graph-workflows/scripts/workflow.py
+          validate plugins/engineering/skills/clean-implementation/SKILL.md
       - run: bun run check
       - run: bun test
       - run: bun run publish:marketplace -- --dry-run

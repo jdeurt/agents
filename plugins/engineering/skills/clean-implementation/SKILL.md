@@ -45,8 +45,7 @@ assess -->|Outcome is repair| repair
 assess -->|Outcome is review| review
 assess -->|Outcome is incomplete| _stop
 review -->|Outcome is repair| repair
-review -->|Outcome is complete| _stop
-review -->|Outcome is incomplete| _stop
+review -->|Outcome is complete or incomplete| _stop
 repair -->|Outcome is repair implementation| plan
 repair -->|Outcome is repair tests| tests
 repair -->|Outcome is repair verification| audit

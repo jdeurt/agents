@@ -57,9 +57,12 @@ All cases are unrun.
 
 ## Current evidence
 
-The draft was prepared through the GitHub connector because the execution workspace was unavailable.
-Local formatting, lint, type, import, build, test, and Graph Workflows CLI checks were not run.
-Native client installation, automatic activation, complete development tasks, and comparative evaluations were not run.
+The packaging regression uses local upstream fixtures with a folded description and nested metadata.
+It checks both client packages, the retained navigation script, and the upstream license.
+The regression fails with the prior header reconstruction and passes with the correction.
+Local verification results are recorded in [PR #17](https://github.com/jdeurt/agents/pull/17).
+CI validates the authored graph with the imported Graph Workflows CLI after building its package.
+Automatic activation, complete development tasks, and comparative evaluations remain unrun.
 
 Earlier independent draft reviews identified repair-routing and existing-test-reuse problems.
 The draft incorporates those corrections.
