@@ -1,0 +1,42 @@
+{
+  "claude/design": {
+    "hash": "808770e8d5355ce46cf5a81c860463950d33b3cc857f3b0cb3a12b2a4df98baf",
+    "version": "1.0.3"
+  },
+  "codex/design": {
+    "hash": "aaf387ecfcda7b86812e0950412309ae339141bf0c1131f08f4be8612e2ad0d5",
+    "version": "1.0.3"
+  },
+  "claude/engineering": {
+    "hash": "bf2397276979b5197cb2fcb6b7b7ebb980b32d1ce35be6fbf3bb8bd5e02673fa",
+    "version": "1.3.0"
+  },
+  "codex/engineering": {
+    "hash": "28b1bf02e31336616f5a3e23fe075af20a6dc0647d8caab59edbe9b95f1a96b1",
+    "version": "1.3.0"
+  },
+  "claude/writing": {
+    "hash": "5ee52bbb24687ed614649ff9acce865147da89c1b87f7ea495a8c0270f53657d",
+    "version": "1.0.6"
+  },
+  "codex/writing": {
+    "hash": "51e33b6c832756918c3f8e504ec1cc83aa6577ea370a97493cacecf019916aab",
+    "version": "1.0.6"
+  },
+  "claude/meta": {
+    "hash": "2a36ae0cd60f7bfb899abb446abbd125bc6fc310f7789dd91f4aae3c122343a3",
+    "version": "1.1.0"
+  },
+  "codex/meta": {
+    "hash": "bfc8c218da2b5f9bd8ab1a85f94e3cac2f4b3ab6d16931eda573c2a9eb4675a4",
+    "version": "1.1.0"
+  },
+  "claude/cloudflare": {
+    "hash": "312055d3b3e15b53f3835614be78281cac11dfb57ddf1856dbd4d05c4adccd01",
+    "version": "1.0.6"
+  },
+  "codex/cloudflare": {
+    "hash": "20d875bd50648c252d2263fe9a050e1503081b215a3e58506483482b8adabee0",
+    "version": "1.0.6"
+  }
+}
