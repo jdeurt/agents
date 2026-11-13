@@ -1,0 +1,8 @@
+{
+  "description": "Implement and verify software, format and lint code, and review changes.",
+  "name": "jdeurt-engineering",
+  "version": "1.3.0",
+  "author": {
+    "name": "jdeurt"
+  }
+}
