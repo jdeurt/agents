@@ -1,0 +1,14 @@
+{
+  "bun": {
+    "url": "https://bun.com/docs/mcp"
+  },
+  "jscpd": {
+    "command": "npx",
+    "args": [
+      "-y",
+      "jscpd@5",
+      "--mcp",
+      "."
+    ]
+  }
+}

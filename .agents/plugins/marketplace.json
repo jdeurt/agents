@@ -1,0 +1,68 @@
+{
+  "name": "agents",
+  "interface": {
+    "displayName": "jdeurt/agents"
+  },
+  "plugins": [
+    {
+      "name": "jdeurt-design",
+      "source": {
+        "source": "local",
+        "path": "./dist/codex/plugins/design"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_USE"
+      },
+      "category": "Design"
+    },
+    {
+      "name": "jdeurt-engineering",
+      "source": {
+        "source": "local",
+        "path": "./dist/codex/plugins/engineering"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_USE"
+      },
+      "category": "Development"
+    },
+    {
+      "name": "jdeurt-writing",
+      "source": {
+        "source": "local",
+        "path": "./dist/codex/plugins/writing"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Writing"
+    },
+    {
+      "name": "jdeurt-meta",
+      "source": {
+        "source": "local",
+        "path": "./dist/codex/plugins/meta"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Development"
+    },
+    {
+      "name": "jdeurt-cloudflare",
+      "source": {
+        "source": "local",
+        "path": "./dist/codex/plugins/cloudflare"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Development"
+    }
+  ]
+}
